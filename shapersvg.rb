@@ -8,8 +8,11 @@ require 'LangHandler.rb'
 # $uStrings = LanguageHandler.new("shaperSVG")
 # extensionSVG = SketchupExtension.new $uStrings.GetString("shaperSVG"), "shapersvg/shapersvg.rb"
 # extensionSVG.description=$uStrings.GetString("Create SVG files from faces")
-
 # Sketchup.register_extension extensionSVG, true
+
+# Sketchup API is a litle strange - many operations create edges, but actually maintain a higher resolution 
+#   circular or elliptical arc.  Still need to figure out various transforms, applied to shapes
+# https://stackoverflow.com/questions/11503558/how-to-undefine-class-in-ruby
 
 # Ruby is just weird
 SHAPERADDIN_VERSION = 'version:0.1'
@@ -179,6 +182,9 @@ class LayoutTransformer
     @loops = []                                 # Array of loops
     @xform = nil
     @layoutx, @layouty, @rowheight = [0.0, 0.0, 0.0]
+    @arcs = []
+    @grps = []
+    @currgrp = nil
     self.reset_face_extents
   end
 
@@ -189,14 +195,22 @@ class LayoutTransformer
     @loops.each { |loop| UI.messagebox loop; svg.path(loop.svgdata, loop.attributes) }
     svg.write(file)
   end
-  
-  def set_transform(t)
+
+  # TODO set_face - make a grp, a transform and a rotation
+  def set_transform(grp, t)
+    @currgrp = grp.entities.add_group()
+    @grps << @currgrp
     @xform = t
+  end
+
+  def set_rotation(r)
+    @rotation = r
   end
 
   def reset_face_extents()
     # Use layout to scan min max x and y for each loop
     @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100,-1e100]
+    @arcs = []
   end
 
   def increment_layout()
@@ -210,20 +224,42 @@ class LayoutTransformer
     end
   end
   
-  def transform(p, get_extents: false)
-    p = p.transform!(@xform)
+  def transform(grp, edge, get_extents: false)
+    
+    pstart = edge.start.position.transform!(@xform)
     # Keep track of the bounds of the loop after transform
+    # See also Curve.first_edge and Curve.last_edge
+    if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
+      
+      # Many edges (line segments) are part of one ArcCurve, process once
+      if not @curves.member?(edge.curve)
+        @curves << edge.curve
+        # transform the arc curve parameters (center, x-axis, z-axis) into z=0 plane
+        # radius and start, end angle invariant (maybe issue with angles)
+        center = edge.curve.center.transform!(@xform)
+        normal = edge.curve.normal.transform!(@rotation)  # should be [0,0,1]
+        UI.messagebox normal.to_s
+        xaxis  = edge.curve.xaxis.transform!(@rotation)  # transformed xaxis
+        
+        firstedge = @currgrp.entities.add_arc(
+          center, normal, xaxis,
+          edge.curve.radius, edge.curve.start_angle, edge.curve.end_angle)[0]
+        xf_ret = firstedge.curve # return the created Sketchup::ArcCurve
+      end
+    else
+      pend = edge.end.position.transform!(@xform)
+      xf_ret = @currgrp.entities.add_edges([pstart,pend])[0] # return the created Sketchup::Edge
+        
+    # Get extents from all edges, including segments in an arc
     if get_extents
-      @minx = p[0] if p[0] < @minx
-      @miny = p[1] if p[1] < @miny
-      @maxx = p[0] if p[0] > @maxx
-      @maxy = p[1] if p[1] > @maxy
+      @minx = pstart[0] if pstart[0] < @minx
+      @miny = pstart[1] if pstart[1] < @miny
+      @maxx = pstart[0] if pstart[0] > @maxx
+      @maxy = pstart[1] if pstart[1] > @maxy
     end
-    p
   end
   
   def makeLoop(grp, points, inner: false)
-    puts 'makeloop POINTS #{points}'
     points.each { |p| self.move p }
     points << points[0]                           # close loop
     g = grp.entities.add_group()
@@ -304,20 +340,21 @@ class ShaperSVG
       # Set the transfrom matrix for all the loops (outer and inside cutouts) on face
       # Transforms onto z=0 plane
       xformer.set_transform(Geom::Transformation.new(face.bounds.min, face.normal).inverse)
+      xformer.set_rotation(Geom::Transformation.new([0,0,0], face.normal).inverse)
 
       # Use the outer loop to get the bounds
-      pts = face.outer_loop.edges.map { |edge|
-        xformer.transform(edge.start.position, get_extents: true)
+      entities = face.outer_loop.edges.map { |edge|
+        xformer.transform(edge, get_extents: true)
       }
-      xformer.makeLoop(grp, pts)
+      xformer.makeLoop(grp, entities)
 
       # For any inner loops, don't recalculate the extents
       face.loops.each { |loop|
         if not loop.equal?(face.outer_loop)
-          pts = loop.edges.map { |edge|
-            xformer.transform edge.start.position
+          entities = loop.edges.map { |edge|
+            xformer.transform(edge)
           } 
-          xformer.makeLoop(grp, pts, inner: true)
+          xformer.makeLoop(grp, entities, inner: true)
         end
       }
 
@@ -329,7 +366,10 @@ class ShaperSVG
   end
 end
 
+
+
 # TODO figure out how to use modules so module reload works without sketchup restart
+
 unless file_loaded?(__FILE__)
 
   menu = UI.menu('Plugins')
