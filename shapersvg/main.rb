@@ -12,9 +12,7 @@ rescue => exception
   true
 end
 
-require 'shapersvg/layout'
-
-UI.messagebox "Starting load"
+load 'shapersvg/layout.rb'
 
 # $uStrings = LanguageHandler.new("shaperSVG")
 # extensionSVG = SketchupExtension.new $uStrings.GetString("shaperSVG"), "shapersvg/shapersvg.rb"
@@ -29,11 +27,10 @@ UI.messagebox "Starting load"
 # More settings material size 2x4 4x4, bit size 1/8, 1/4
 # Look at
 # https://www.codeproject.com/Articles/210979/Fast-optimizing-rectangle-packing-algorithm-for-bu
-# for way to simply arrange the rectangles efficiently
+# for way to simply arrange the rectangles efficiently in layout, maybe overkill.
 
 SPACING = 1.0 # 1" spacing
 SHEETWIDTH = 48.0
-
 
 module ShaperSVG
 

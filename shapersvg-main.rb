@@ -8,13 +8,6 @@ require 'LangHandler'
 # https://stackoverflow.com/questions/11503558/how-to-undefine-class-in-ruby
 load 'shapersvg/main.rb'   # Use load, so reload will update plugin
 
-UI.messagebox "Starting load"
-
-# $uStrings = LanguageHandler.new("shaperSVG")
-# extensionSVG = SketchupExtension.new $uStrings.GetString("shaperSVG"), "shapersvg/main.rb"
-# extensionSVG.description=$uStrings.GetString("Create SVG files from faces")
-# Sketchup.register_extension extensionSVG, true
-
 # Sketchup API is a litle strange - many operations create edges, but actually maintain a higher resolution 
 #   circular or elliptical arc.  Still need to figure out various transforms, applied to shapes
 

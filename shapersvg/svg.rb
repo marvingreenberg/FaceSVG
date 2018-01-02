@@ -7,10 +7,67 @@ rescue => exception
   true
 end
 
-FMT = '%0.2f'
+FMT = '%0.3f'
 
 module ShaperSVG
 module SVG
+
+  # Sketchup is a mess - it draws curves and keeps information about them
+  #  but treats everything as edges
+  # Create class to aggregate ArcCurve with its associated Edges
+  # Instead of largeArc, break every arc into two pieces if largeArc?
+  class ArcObject
+    # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
+    # with accurate arc information    
+    def initialize(xform, curve_edges)
+      @xform = xform
+      @edges = curve_edges
+      @curve = curve_edges[0].curve
+      # curve has curve.center, curve.radius, curve.start_angle, curve.end_angle
+    end
+    def startxy()
+      p = @edges[0].start.position.transform(@xform)
+      UI.messagebox "arc xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
+                      @edges[0].start.position.to_a() + p.to_a())
+      [p[0],p[1]] # x,y
+    end
+    def endxy()
+      p = @edges[-1].end.position.transform(@xform)
+      [p[0],p[1]] # x,y
+    end
+    def svgdata(prev)
+      centerxy = [@curve.center[0],@curve.center[1]] # not needed
+      r = @curve.radius.round(3)
+      largeArc = (@curve.end_angle - @curve.start_angle) > Math::PI ? '1' : '0'
+      # Don't get xrotation
+      # sweep may need to be calculated from something, like where center is
+      sweep, xrotation = '0', '0'
+      (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
+        " A #{r} #{r} #{xrotation} #{largeArc} #{sweep} #{FMT} #{FMT}" % self.endxy )
+    end
+  end
+        
+  class EdgeObject
+    # Edge is a single line segment with a start and end x,y
+    def initialize(xform, edges)
+      @xform = xform
+      @edges = edges # Always one-element array
+    end
+    def startxy()
+      p = @edges[0].start.position.transform(@xform)
+      UI.messagebox "edge xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
+                      @edges[0].start.position.to_a() + p.to_a())
+      [p[0],p[1]] # x,y
+    end
+    def endxy()
+      p = @edges[0].end.position.transform(@xform)
+      [p[0],p[1]] # x,y
+    end
+    def svgdata(prev)
+      (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
+        " L #{FMT} #{FMT}" % self.endxy)
+    end
+  end
 
   # Class used to collect the output paths to be emitted as SVG
   #
@@ -24,8 +81,8 @@ module SVG
   #
   # Embody +parameters+ or +options+ in Teletype Text tags.
   class Canvas
-    def initialize(minx, miny, maxx, maxy, unit, version)
-      @minx, @miny, @maxx, @maxy = minx, miny, maxx, maxy
+    def initialize(viewport, unit, version)
+      @minx, @miny, @maxx, @maxy = viewport
       @width = @maxx - @minx    
       @height = @maxy - @miny
       @unit = unit
@@ -112,38 +169,42 @@ module SVG
     end
   end
 
-
-
-  
   ## open path cut
-  class Edge; def initialize(points); @points = points; end; end
-
-  def createLoop(points: nil, arcparms: nil, inner: false)
-    if inner
-      l = InnerLoop.new(points)
-    else
-      l = OuterLoop.new(points)
+  class Edge
+    def initialize(points)
+      @points = points
     end
-    l
   end
 
-  
   class Loop
-    def initialize(points); @points = points; end;
+    # class Loop factory method
+    def self.create(xform, edgesarray, outer)
+      Loop.new( 
+        edgesarray.map { |edgearr|
+          (edgearr.size == 1 ?
+             EdgeObject.new(xform, edgearr)
+           :
+             ArcObject.new(xform, edgearr)
+          )
+        }, outer)
+    end   
+    
+    def initialize(pathparts, outer:false)
+      @pathparts = pathparts
+      if outer
+        @attributes = { path_type: "exterior", fill: "rgb(0,0,0)" }
+      else
+        @attributes = { path_type: "interior", stroke_width: "2", stroke: "rgb(0,0,0)", fill: "rgb(255,255,255)" }
+      end
+    end
 
+    def attributes
+      @attributes
+    end
+    # Append all indifidual path data parts, with Z at end to closepath
     def svgdata
-      "M " + (@points.map { |p| puts p; "%0.5f %0.5f"% [p[0],p[1]] }).join(" L ")
-    end
-  end
-  class InnerLoop < Loop
-    def attributes
-      { path_type: "interior", stroke_width: "2", stroke: "rgb(0,0,0)", fill: "rgb(255,255,255)" }
-    end
-  end
-
-  class OuterLoop < Loop
-    def attributes
-      { path_type: "exterior", fill: "rgb(0,0,0)" }
+      prev = nil
+      (@pathparts.map { |p| d = p.svgdata(prev);  prev = p; d }).join(' ') + " Z"
     end
   end
 

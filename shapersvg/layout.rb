@@ -5,12 +5,8 @@ require 'sketchup'
 require 'extensions'
 require 'LangHandler'
 
-UI.messagebox "Starting load"
-
 # Provides SVG module with SVG::Canvas class
-require 'shapersvg/svg'
-
-UI.messagebox "Loaded SVG module"
+load 'shapersvg/svg.rb'
 
 # $uStrings = LanguageHandler.new("shaperSVG")
 # extensionSVG = SketchupExtension.new $uStrings.GetString("shaperSVG"), "shapersvg/shapersvg.rb"
@@ -19,18 +15,22 @@ UI.messagebox "Loaded SVG module"
 
 # Sketchup API is a litle strange - many operations create edges, but actually maintain a higher resolution 
 #   circular or elliptical arc.  Still need to figure out various transforms, applied to shapes
-# https://stackoverflow.com/questions/11503558/how-to-undefine-class-in-ruby
+
 
 # SVG units are: in, cm, mm
 INCHES = 'in'
 CM = 'cm'
 MM = 'mm'
 
-# https://www.codeproject.com/Articles/210979/Fast-optimizing-rectangle-packing-algorithm-for-bu
-# for way to simply arrange the rectangles efficiently
 
 module ShaperSVG
 module Layout
+
+SHAPER = 'shaper'
+PROFILEKIND = 'profilekind'
+PK_INNER = 'inner'
+PK_OUTER = 'outer'
+PK_GUIDE = 'guide'
 
 class Transformer
   # Transform the points in a face loop, and find the min,max x,y in
@@ -39,102 +39,120 @@ class Transformer
     @loops = []                                 # Array of loops
     @xform = nil
     @layoutx, @layouty, @rowheight = [0.0, 0.0, 0.0]
-    @arcs = []
     @grps = []
-    @currgrp = nil
-    self.reset_face_extents
+    @curves = []
+    @facegrp = nil
+    @profilelayer = Sketchup::active_model.layers.add('Cut Profile')
+    @profilegrp = Sketchup::active_model.entities.add_group()
+    @profilegrp.layer = @profilelayer
+    @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100,-1e100]
+    @viewport = [0.0, 0.0, -1e100, -1e100] # maxx, maxy of viewport updated in layout_facegrp
   end
 
   def write(file)
-    svg = ShaperSVG::SVG::Canvas.new(@minx, @miny, @maxx, @maxy, INCHES, ShaperSVG::ADDIN_VERSION)
+    svg = ShaperSVG::SVG::Canvas.new(@viewport, INCHES, ShaperSVG::ADDIN_VERSION)
     svg.title('Title')                 
     svg.desc('Description')
-    @loops.each { |loop| UI.messagebox loop; svg.path(loop.svgdata, loop.attributes) }
+    @loops.each { |loop| svg.path(loop.svgdata, loop.attributes) }
     svg.write(file)
   end
 
-  # TODO set_face - make a grp, a transform and a rotation
-  def set_transform(grp, t)
-    @currgrp = grp.entities.add_group()
-    @grps << @currgrp
-    @xform = t
-  end
-
-  def set_rotation(r)
-    @rotation = r
-  end
-
-  def reset_face_extents()
-    # Use layout to scan min max x and y for each loop
+  def change_face(face)
+    # Reset face extents, update extents as outer loop elements are transformed
     @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100,-1e100]
-    @arcs = []
+    @facegrp = @profilegrp.entities.add_group()
+    # Set the transfrom matrix for all the loops (outer and inside cutouts) on face
+    # Transforms onto z=0 plane
+    @xform = Geom::Transformation.new(face.bounds.min, face.normal).inverse
+    @rotation = Geom::Transformation.new([0,0,0], face.normal).inverse
+    @grps << @facegrp
   end
 
-  def increment_layout()
-    @layoutx = SPACING + @maxx - @minx
+### http://ruby.sketchup.com/Sketchup/Entities.html#transform_entities-instance_method
+### Important note: If you apply a transformation to entities that are
+### not in the current edit context (i.e. faces that are inside a
+### group), SketchUp will apply the transformation incorrectly
+### COMMENT: maybe doesn't matter, everything is relative?  Maybe use groups cleverly?
+### transform the group, not the edges, arcs inside?
+  def layout_facegrp()
+    # After the bounds of the outer loop are calculated, layout the paths (inner and outer) 
+    xf = Geom::Transformation.new( [ @layoutx - @minx, @layouty - @miny, 0.0] )
+    @profilegrp.entities.transform_entities(xf, @facegrp)
+
+    UI.messagebox "Layout %s at %s" % [@facegrp, [@layoutx - @minx, @layouty - @miny]]
+    @layoutx += SPACING + @maxx - @minx
+    @viewport[2] = [@viewport[2],@layoutx].max
     # As each element is layed out horizontally, keep track of the tallest bit
     @rowheight = [@rowheight, @maxy - @miny].max
     if @layoutx > SHEETWIDTH
       @layoutx = 0.0
       @layouty += @rowheight
-      @rowheight = 0
+      @rowheight = 0.0
     end
+    # Adjust the x, y max for viewport as each face is laid out
+    @viewport[3] = [@viewport[3],@layouty+@rowheight].max
+    @viewport[2] = [@viewport[2],@layoutx].max
+
+
+
   end
 
-  def move(p)
-    p[0] = p[0] - @minx + @layoutx
-    p[1] = p[1] - @miny + @layouty
-  end  
+  # Re: Adding objects into a group/component
+  # Sketchup API documentation is embarrassingly TERRIBLE
+#Try
+#group.entities.add_instance(other_group.entities.parent, other_group.transformation*group.transformation)
+#other_group.entities.parent.instances[1].material=other_group.material
+#other_group.entities.parent.instances[1].layer=other_group.layer
+### you can also copy over other attributes of 'other_group' if appropriate
 
-  def makeLoop(grp, points, inner: false)
-    points.each { |p| self.move p }
-    points << points[0]                           # close loop
-    g = grp.entities.add_group()
-    g.entities.add_edges(points)
-
-    ### TODO separate the transformation and grouping of the cutting paths
-    ### from the creation of the transformed loops for SVG output
-    ### Let the designer interact with the created cutting paths before emitting
-    ### SVG, say to change layout or delete items to be cut...
-    @loops << SVG.createLoop( points: points, inner: inner ) 
-  end
-  
-  def transform(grp, edge, get_extents: false)
-    
-    pstart = edge.start.position.transform!(@xform)
-    # Keep track of the bounds of the loop after transform
-    # See also Curve.first_edge and Curve.last_edge
-    if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
+  def transform(edges, outer: false)
+    # TODO Add a common layer when creating new bits
+    pathgrp = @facegrp.entities.add_group()
+    pathparts = edges.map { |edge|
+      xf_edges = nil
+      pstart = edge.start.position.transform!(@xform)
+      # Keep track of the bounds of the loop after transform
+      # See also Curve.first_edge and Curve.last_edge
+      if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
       
-      # Many edges (line segments) are part of one ArcCurve, process once
-      if not @curves.member?(edge.curve)
-        @curves << edge.curve
-        # transform the arc curve parameters (center, x-axis, z-axis) into z=0 plane
-        # radius and start, end angle invariant (maybe issue with angles)
-        center = edge.curve.center.transform!(@xform)
-        normal = edge.curve.normal.transform!(@rotation)  # should be [0,0,1]
-        UI.messagebox normal.to_s
-        xaxis  = edge.curve.xaxis.transform!(@rotation)  # transformed xaxis
-        
-        firstedge = @currgrp.entities.add_arc(
-          center, normal, xaxis,
-          edge.curve.radius, edge.curve.start_angle, edge.curve.end_angle)[0]
-        xf_ret = firstedge.curve # return the created Sketchup::ArcCurve
+        # Many edges (line segments) are part of one ArcCurve, process once
+        if not @curves.member?(edge.curve)
+          @curves << edge.curve
+          # transform the arc curve parameters (center, x-axis, z-axis) into z=0 plane
+          # radius and start, end angle invariant (maybe issue with angles)
+          center = edge.curve.center.transform!(@xform)
+          normal = edge.curve.normal.transform!(@rotation)  # should be [0,0,1]
+          xaxis  = edge.curve.xaxis.transform!(@rotation)  # transformed xaxis
+          xf_edges = pathgrp.entities.add_arc(
+            center, xaxis, normal,
+            edge.curve.radius, edge.curve.start_angle, edge.curve.end_angle)
+          UI.messagebox 'Transformed arc %s' % xf_edges
+          xf_edges.each {
+            |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
+          }
+          # TODO after refactoring, transformation may be available differently
+          # TODO properly need facegrp and pathgrp transformation (but latter is identity?)
+        end
+      else
+        pend = edge.end.position.transform!(@xform)
+        xf_edges = pathgrp.entities.add_edges([pstart,pend])
+        UI.messagebox 'Transformed edge %s' % xf_edges
+        xf_edges.each {
+          |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
+        }
       end
-    else
-      pend = edge.end.position.transform!(@xform)
-      xf_ret = @currgrp.entities.add_edges([pstart,pend])[0] # return the created Sketchup::Edge
-
-    end
-    # Get extents from all edges, including segments in an arc
-    if get_extents
-      @minx = pstart[0] if pstart[0] < @minx
-      @miny = pstart[1] if pstart[1] < @miny
-      @maxx = pstart[0] if pstart[0] > @maxx
-      @maxy = pstart[1] if pstart[1] > @maxy
-    end
-  end
+      # Get extents from all outer transformed edges, including segments in an arc  
+      if outer
+        @minx = [pstart[0], @minx].min
+        @miny = [pstart[1], @miny].min
+        @maxx = [pstart[0], @maxx].max
+        @maxy = [pstart[1], @maxy].max
+      end
+      xf_edges
+    }.reject(&:nil?)
     
+  end
+
   def process(elt)
     puts "process #{elt}"
     if elt.is_a?(Sketchup::Group)
@@ -143,32 +161,38 @@ class Transformer
     elsif elt.is_a?(Sketchup::Face)
       face = elt
       puts "processing #{face}"
-      # For each face, reset the face extents
-      self.reset_face_extents
-      grp = Sketchup::active_model.entities.add_group()
-      # Set the transfrom matrix for all the loops (outer and inside cutouts) on face
-      # Transforms onto z=0 plane
-      self.set_transform(Geom::Transformation.new(face.bounds.min, face.normal).inverse)
-      self.set_rotation(Geom::Transformation.new([0,0,0], face.normal).inverse)
+      # For each face, reset the face extents and set up transforms
+      self.change_face(face)
 
       # Use the outer loop to get the bounds
-      entities = face.outer_loop.edges.map { |edge|
-        self.transform(edge, get_extents: true)
-      }
-      self.makeLoop(grp, entities)
+      # TODO separate SVG generation from layout.  Probably means
+      #  passing @facegrp to Loop::create and not maintaining so
+      # much info in transform()
+
+      # Return array of edge arrays.  If edge array size>1 it is an arc
+      edgesarr = self.transform(face.outer_loop.edges, outer: true)
+
+      # After outerloop is calculated, can layout the whole facegrp
+      # which calculates the facegrp transformation.  All the path loops
+      # are in the facegroup
+      self.layout_facegrp()
+
+      ### TODO separate the transformation and grouping of the cutting paths
+      ### from the creation of the transformed loops for SVG output
+      ### Let the designer interact with the created cutting paths before emitting
+      ### SVG, say to change layout or delete items to be cut...
+      @loops << ShaperSVG::SVG::Loop.create(
+        @facegrp.transformation, edgesarr, outer: true)
 
       # For any inner loops, don't recalculate the extents
       face.loops.each { |loop|
         if not loop.equal?(face.outer_loop)
-          entities = loop.edges.map { |edge|
-            self.transform(edge)
-          } 
-          self.makeLoop(grp, entities, inner: true)
+          edgesarr = self.transform(loop.edges)
+          @loops << ShaperSVG::SVG::Loop.create(
+            @facegrp.transformation, edgesarr, outer: false)          
         end
       }
 
-      self.increment_layout
-      
     else
       puts "process: skipping #{elt}"
     end
