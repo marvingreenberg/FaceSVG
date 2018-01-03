@@ -21,9 +21,11 @@ module SVG
     # with accurate arc information    
     def initialize(xform, curve_edges)
       @xform = xform
-      @edges = curve_edges
       @curve = curve_edges[0].curve
-      # curve has curve.center, curve.radius, curve.start_angle, curve.end_angle
+      # Ensure the edges are ordered as a path
+      @edges = @curve.edges
+
+      # curve has curve.center, curve.radius, curve.xaxis, curve.start_angle, curve.end_angle
     end
     def startxy()
       p = @edges[0].start.position.transform(@xform)
@@ -31,19 +33,32 @@ module SVG
                       @edges[0].start.position.to_a() + p.to_a())
       [p[0],p[1]] # x,y
     end
+    def PI_xy()
+      # return nil if < 180 degree arc.
+      # center + xaxis is start, 180 degrees away  is (center - xaxis)
+      # this xaxis stuff may not be true for arcs, more generally
+      p = @curve.center - @curve.xaxis
+      (@curve.end_angle - @curve.start_angle) > Math::PI and [p[0], p[1]] or nil
+    end   
     def endxy()
       p = @edges[-1].end.position.transform(@xform)
       [p[0],p[1]] # x,y
     end
     def svgdata(prev)
-      centerxy = [@curve.center[0],@curve.center[1]] # not needed
+      # angle > PI, draw arc up to PI, then PI to end angle
+      centerxy = [@curve.center[0],@curve.center[1]]
       r = @curve.radius.round(3)
-      largeArc = (@curve.end_angle - @curve.start_angle) > Math::PI ? '1' : '0'
-      # Don't get xrotation
+      # large arc is always false, always draw tro arcs if > 180
+      largeArc= '0'
+      # Don't understand xrotation
       # sweep may need to be calculated from something, like where center is
-      sweep, xrotation = '0', '0'
+      sweep, xrot = '0', '0'
+      midpoint = self.PI_xy # may be nil
+      endpoint = self.endxy 
       (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
-        " A #{r} #{r} #{xrotation} #{largeArc} #{sweep} #{FMT} #{FMT}" % self.endxy )
+       midpoint.nil? ? '' : " A #{r} #{r} #{xrot} #{largeArc} #{sweep} #{FMT} #{FMT}" % midpoint ) + (
+        " A #{r} #{r} #{xrot} #{largeArc} #{sweep} #{FMT} #{FMT}" % endpoint)
+        
     end
   end
         
@@ -55,17 +70,20 @@ module SVG
     end
     def startxy()
       p = @edges[0].start.position.transform(@xform)
-      UI.messagebox "edge xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
+      UI.messagebox "edge start xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
                       @edges[0].start.position.to_a() + p.to_a())
       [p[0],p[1]] # x,y
     end
     def endxy()
+      # some comment about start,end and edge ordering
       p = @edges[0].end.position.transform(@xform)
+      UI.messagebox "edge end xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
+                      @edges[0].start.position.to_a() + p.to_a())
       [p[0],p[1]] # x,y
     end
     def svgdata(prev)
-      (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
-        " L #{FMT} #{FMT}" % self.endxy)
+      (prev.nil? ? "M #{FMT} #{FMT}" % self.endxy : '') + (
+        " L #{FMT} #{FMT}" % self.startxy)
     end
   end
 
