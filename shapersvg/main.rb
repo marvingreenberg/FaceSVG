@@ -37,34 +37,90 @@ module ShaperSVG
   ADDIN_VERSION = 'version:0.1'
 
   module Main
+
+    extend self # Ruby is weird.  Make Main module act like a singleton class
     
+    @@menus_set ||= false
     @@out_filename = '/Users/mgreenberg/example.svg'
     @@segments = true
     @@text = true
+    @@xformer = ShaperSVG::Layout::Transformer.new
 
-    def self.shapersvg_2d_layout
-      lt = ShaperSVG::Layout::Transformer.new
-      Sketchup::active_model.selection.each { |s| lt.process(s) }
-      File.open(@@out_filename,'w') do |f|
-        lt.write(f)
-      end
-    rescue => exception
-      puts exception.backtrace.reject(&:empty?).join("\n**")
-      puts  exception.to_s
-      
+    def _handle(exception)
       UI.messagebox exception.backtrace.reject(&:empty?).join("\n**")
       UI.messagebox exception.to_s
+    end
+
+    def shapersvg_2d_layout
+      @@xformer.process_selection()
+    rescue => exception
+      _handle(exception)
       raise
     end
-  
-    def self.shapersvg_settings
-      puts "hello export_settings"
+
+    def shapersvg_write
+      # Write the SVG file
+      File.open(@@out_filename,'w') do |f|
+        @@xformer.write(f)
+      end
+    rescue => exception
+      _handle(exception)
+      raise
+    end
+      
+    def shapersvg_reset
+      # Delete the cut path layout
+      @@xformer.reset
+    rescue => exception
+      _handle(exception)
+      raise
+    end
+
+    def shapersvg_mark_face(sel)
+      @@xformer.mark_face(sel)
+    end
+    
+    def shapersvg_settings
+      # No real useful settings yet
       inputs = UI.inputbox(
         ["Output filename", "Segments", "Text"],
         [@@out_filename, @@segments, @@text],
         ["","on|off","on|off"],
-        "---------- SVG Export Settings -----------")
+        "--------                 SVG Export Settings                 -----------")
       @@out_filename, @@segments, @@text = inputs if inputs
+    rescue => exception
+      _handle(exception)
+      raise
+    end
+    
+    unless file_loaded?(__FILE__)  || @@menus_set
+      begin
+        menu = UI.menu('Plugins')
+        menu.add_item('ShaperSVG 2D Layout') {
+          shapersvg_2d_layout
+        }
+        menu.add_item('ShaperSVG Settings') {
+          shapersvg_settings
+        }
+        
+        UI.add_context_menu_handler do |context_menu|
+          selset = Sketchup::active_model.selection
+          _sm = context_menu.add_submenu('Shaper')
+          _sm.add_item('Reset SVG profile') { shapersvg_reset }
+          _sm.add_item('Write SVG profile') { shapersvg_write }
+          _sm.add_item('Layout SVG profile') { shapersvg_2d_layout }
+          if selset.size > 1
+            _sm.add_item('Mark face(s)') { shapersvg_mark_face(selset) }
+          end
+        end # context_menu_handler
+
+        @@context_menu_set = true      
+        UI.messagebox "Loaded #{__FILE__}", MB_OK
+        file_loaded(__FILE__)
+      rescue => exception
+        _handle(exception)
+        raise
+      end
     end
   end
 end

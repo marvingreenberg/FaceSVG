@@ -24,22 +24,52 @@ module SVG
       @curve = curve_edges[0].curve
       # Ensure the edges are ordered as a path
       @edges = @curve.edges
+      self.ellipse_parameters()
 
-      # curve has curve.center, curve.radius, curve.xaxis, curve.start_angle, curve.end_angle
+      # curve has curve.center, curve.radius, curve.xaxis, curve.yaxis, curve.start_angle, curve.end_angle
     end
+    # Note, by this point all paths should be transformed to z=0, but still treat all as 3d for simplicity
+    # From https://en.wikipedia.org/wiki/Ellipse#Ellipse_as_an_affine_image_of_the_unit_circle_x%C2%B2+y%C2%B2=1
+    def ellipse_parameters()
+      # circle
+      if @curve.xaxis.length == @curve.yaxis.length
+        @vx = @curve.xaxis
+        @vy = @curve.yaxis
+        @rx = @ry = @curve.radius
+      else
+        f1 = @curve.xaxis
+        f2 = @curve.yaxis
+        val = ((f1 % f2) * 2) / ((f1 % f1) - (f2 % f2))  
+        vertex_angle1 = Math::atan(val) / 2
+        vertex_angle2 = vertex_angle1 + Math::PI/2
+        @vx = ellipAtAngle(vertex_xangle1)
+        @vy = ellipAtAngle(vertex_angle2)
+        @rx = @vx.length
+        @ry = @vy.length
+      end
+      # Angle of x vertex vector
+      @xrot = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0]).radians
+    end
+    
+    def ellipAtAngle(ang)
+      cosa = Math::cos(ang)
+      sina = Math::sin(ang)
+      Geom::Vector3d.new( [0,1,2].map { |i|  @curve.xaxis[i]*cosa + @curve.yaxis[i]*sina } )
+    end
+
     def startxy()
       p = @edges[0].start.position.transform(@xform)
-      UI.messagebox "arc xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
-                      @edges[0].start.position.to_a() + p.to_a())
       [p[0],p[1]] # x,y
     end
     def PI_xy()
       # return nil if < 180 degree arc.
-      # center + xaxis is start, 180 degrees away  is (center - xaxis)
-      # this xaxis stuff may not be true for arcs, more generally
-      p = @curve.center - @curve.xaxis
-      (@curve.end_angle - @curve.start_angle) > Math::PI and [p[0], p[1]] or nil
-    end   
+      # center + @vx is start, 180 degrees away  is (center - @vx)
+      if (@curve.end_angle - @curve.start_angle) > Math::PI
+        p = @curve.center.transform(@xform) - @vx
+        [p[0], p[1]]
+      end
+    end
+          
     def endxy()
       p = @edges[-1].end.position.transform(@xform)
       [p[0],p[1]] # x,y
@@ -48,17 +78,18 @@ module SVG
       # angle > PI, draw arc up to PI, then PI to end angle
       centerxy = [@curve.center[0],@curve.center[1]]
       r = @curve.radius.round(3)
-      # large arc is always false, always draw tro arcs if > 180
+      # large arc is always false, always draw two arcs if > 180
       largeArc= '0'
-      # Don't understand xrotation
       # sweep may need to be calculated from something, like where center is
-      sweep, xrot = '0', '0'
+      sweep = '0'
       midpoint = self.PI_xy # may be nil
       endpoint = self.endxy 
-      (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
-       midpoint.nil? ? '' : " A #{r} #{r} #{xrot} #{largeArc} #{sweep} #{FMT} #{FMT}" % midpoint ) + (
-        " A #{r} #{r} #{xrot} #{largeArc} #{sweep} #{FMT} #{FMT}" % endpoint)
-        
+      ( (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + 
+        ( midpoint.nil? ? '' : 
+            (" A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
+             [@rx, @ry, @xrotdeg, largeArc, sweep, midpoint[0], midpoint[1]] )) +
+        " A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
+          [@rx, @ry, @xrotdeg, largeArc, sweep, endpoint[0], endpoint[1]] )
     end
   end
         
@@ -70,15 +101,11 @@ module SVG
     end
     def startxy()
       p = @edges[0].start.position.transform(@xform)
-      UI.messagebox "edge start xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
-                      @edges[0].start.position.to_a() + p.to_a())
       [p[0],p[1]] # x,y
     end
     def endxy()
       # some comment about start,end and edge ordering
       p = @edges[0].end.position.transform(@xform)
-      UI.messagebox "edge end xyz #{FMT} #{FMT} #{FMT}, transformed #{FMT} #{FMT} #{FMT}" % (
-                      @edges[0].start.position.to_a() + p.to_a())
       [p[0],p[1]] # x,y
     end
     def svgdata(prev)

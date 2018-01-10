@@ -36,17 +36,50 @@ class Transformer
   # Transform the points in a face loop, and find the min,max x,y in
   #   the z=0 plane
   def initialize()
+    self.clear()
+  end
+  
+  def clear()
     @loops = []                                 # Array of loops
     @xform = nil
     @layoutx, @layouty, @rowheight = [0.0, 0.0, 0.0]
     @grps = []
     @curves = []
     @facegrp = nil
-    @profilelayer = Sketchup::active_model.layers.add('Cut Profile')
-    @profilegrp = Sketchup::active_model.entities.add_group()
-    @profilegrp.layer = @profilelayer
+    @profilegrp = nil
     @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100,-1e100]
     @viewport = [0.0, 0.0, -1e100, -1e100] # maxx, maxy of viewport updated in layout_facegrp
+    @selected_model_faces = []
+  end
+
+  def profilegrp
+    if (not @profilegrp) and  @profilegrp.valid?
+      @profilegrp = Sketchup::active_model.entities.add_group()
+      @profilelayer = Sketchup::active_model.layers.add('Cut Profile')
+      @profilegrp.layer = @profilelayer
+    end
+    @profilegrp
+  end
+  
+  def reset()
+    if @profilegrp && @profilegrp.valid?  # hasn't been deleted manually
+      Sketchup.active_model.entities.erase_entities @profilegrp
+    end
+    self.clear
+  end
+  
+  def mark_face(selections)
+    selections.each { |face|
+      if face.is_a? Sketchup::Face 
+        if @selected_model_faces.member?(face)
+          @selected_model_faces.delete(face)
+          face.material = nil
+        else
+          face.material = "Black"
+          @selected_model_faces << face
+        end
+      end
+    }
   end
 
   def write(file)
@@ -60,7 +93,7 @@ class Transformer
   def change_face(face)
     # Reset face extents, update extents as outer loop elements are transformed
     @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100,-1e100]
-    @facegrp = @profilegrp.entities.add_group()
+    @facegrp = self.profilegrp.entities.add_group()
     # Set the transfrom matrix for all the loops (outer and inside cutouts) on face
     # Transforms onto z=0 plane
     @xform = Geom::Transformation.new(face.bounds.min, face.normal).inverse
@@ -79,7 +112,6 @@ class Transformer
     xf = Geom::Transformation.new( [ @layoutx - @minx, @layouty - @miny, 0.0] )
     @profilegrp.entities.transform_entities(xf, @facegrp)
 
-    UI.messagebox "Layout %s at %s" % [@facegrp, [@layoutx - @minx, @layouty - @miny]]
     @layoutx += SPACING + @maxx - @minx
     @viewport[2] = [@viewport[2],@layoutx].max
     # As each element is layed out horizontally, keep track of the tallest bit
@@ -126,7 +158,6 @@ class Transformer
           xf_edges = pathgrp.entities.add_arc(
             center, xaxis, normal,
             edge.curve.radius, edge.curve.start_angle, edge.curve.end_angle)
-          UI.messagebox 'Transformed arc %s' % xf_edges
           xf_edges.each {
             |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
           }
@@ -136,7 +167,6 @@ class Transformer
       else
         pend = edge.end.position.transform!(@xform)
         xf_edges = pathgrp.entities.add_edges([pstart,pend])
-        UI.messagebox 'Transformed edge %s' % xf_edges
         xf_edges.each {
           |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
         }
@@ -153,49 +183,48 @@ class Transformer
     
   end
 
-  def process(elt)
-    puts "process #{elt}"
-    if elt.is_a?(Sketchup::Group)
-      # Recurse down into groups to find faces in selected groups
-      elt.entities.each { |e| self.process(e) }
-    elsif elt.is_a?(Sketchup::Face)
-      face = elt
-      puts "processing #{face}"
-      # For each face, reset the face extents and set up transforms
-      self.change_face(face)
+  def process_selection()
+    @selected_model_faces.each { |elt|
+      # Test for group is dead code from earllier iterations...
+      if elt.is_a?(Sketchup::Group)
+        # Recurse down into groups to find faces in selected groups
+        elt.entities.each { |e| self.process(e) }
+      elsif elt.is_a?(Sketchup::Face)
+        face = elt
+        puts "processing #{face}"
+        # For each face, reset the face extents and set up transforms
+        self.change_face(face)
 
-      # Use the outer loop to get the bounds
-      # TODO separate SVG generation from layout.  Probably means
-      #  passing @facegrp to Loop::create and not maintaining so
-      # much info in transform()
+        # Use the outer loop to get the bounds
+        # TODO separate SVG generation from layout.  Probably means
+        #  passing @facegrp to Loop::create and not maintaining so
+        # much info in transform()
 
-      # Return array of edge arrays.  If edge array size>1 it is an arc
-      edgesarr = self.transform(face.outer_loop.edges, outer: true)
+        # Return array of edge arrays.  If edge array size>1 it is an arc
+        edgesarr = self.transform(face.outer_loop.edges, outer: true)
 
-      # After outerloop is calculated, can layout the whole facegrp
-      # which calculates the facegrp transformation.  All the path loops
-      # are in the facegroup
-      self.layout_facegrp()
+        # After outerloop is calculated, can layout the whole facegrp
+        # which calculates the facegrp transformation.  All the path loops
+        # are in the facegroup
+        self.layout_facegrp()
 
-      ### TODO separate the transformation and grouping of the cutting paths
-      ### from the creation of the transformed loops for SVG output
-      ### Let the designer interact with the created cutting paths before emitting
-      ### SVG, say to change layout or delete items to be cut...
-      @loops << ShaperSVG::SVG::Loop.create(
-        @facegrp.transformation, edgesarr, outer: true)
+        ### TODO separate the transformation and grouping of the cutting paths
+        ### from the creation of the transformed loops for SVG output
+        ### Let the designer interact with the created cutting paths before emitting
+        ### SVG, say to change layout or delete items to be cut...
+        @loops << ShaperSVG::SVG::Loop.create(
+          @facegrp.transformation, edgesarr, outer: true)
 
-      # For any inner loops, don't recalculate the extents
-      face.loops.each { |loop|
-        if not loop.equal?(face.outer_loop)
-          edgesarr = self.transform(loop.edges)
-          @loops << ShaperSVG::SVG::Loop.create(
-            @facegrp.transformation, edgesarr, outer: false)          
-        end
-      }
-
-    else
-      puts "process: skipping #{elt}"
-    end
+        # For any inner loops, don't recalculate the extents
+        face.loops.each { |loop|
+          if not loop.equal?(face.outer_loop)
+            edgesarr = self.transform(loop.edges)
+            @loops << ShaperSVG::SVG::Loop.create(
+              @facegrp.transformation, edgesarr, outer: false)          
+          end
+        }
+      end
+    }
   end
 end
 
