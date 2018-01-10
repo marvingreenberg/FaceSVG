@@ -97,7 +97,6 @@ class Transformer
     # Set the transfrom matrix for all the loops (outer and inside cutouts) on face
     # Transforms onto z=0 plane
     @xform = Geom::Transformation.new(face.bounds.min, face.normal).inverse
-    @rotation = Geom::Transformation.new([0,0,0], face.normal).inverse
     @grps << @facegrp
   end
 
@@ -146,18 +145,18 @@ class Transformer
       # Keep track of the bounds of the loop after transform
       # See also Curve.first_edge and Curve.last_edge
       if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
-      
+        ellipse = edge.curve
         # Many edges (line segments) are part of one ArcCurve, process once
-        if not @curves.member?(edge.curve)
-          @curves << edge.curve
-          # transform the arc curve parameters (center, x-axis, z-axis) into z=0 plane
-          # radius and start, end angle invariant (maybe issue with angles)
-          center = edge.curve.center.transform!(@xform)
-          normal = edge.curve.normal.transform!(@rotation)  # should be [0,0,1]
-          xaxis  = edge.curve.xaxis.transform!(@rotation)  # transformed xaxis
-          xf_edges = pathgrp.entities.add_arc(
-            center, xaxis, normal,
-            edge.curve.radius, edge.curve.start_angle, edge.curve.end_angle)
+        if not @curves.member?(ellipse)
+          @curves << ellipse
+          # Duplicate the arc, then transform it onto z=0 plane
+          # start, end angle invariant
+          unitcircle_edges = pathgrp.entities.add_arc(
+            ORIGIN, X_AXIS, Z_AXIS, 1.0, ellipse.start_angle, ellipse.end_angle)
+          ellxform = Geom::Transformation.new( ellipse.xaxis, ellipse.yaxis, ellipse.normal, ellipse.center)
+
+          ### Work in progress...xs
+
           xf_edges.each {
             |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
           }
