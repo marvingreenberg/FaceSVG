@@ -22,7 +22,6 @@ INCHES = 'in'
 CM = 'cm'
 MM = 'mm'
 
-
 module ShaperSVG
 module Layout
 
@@ -51,9 +50,8 @@ class Transformer
     @viewport = [0.0, 0.0, -1e100, -1e100] # maxx, maxy of viewport updated in layout_facegrp
     @selected_model_faces = []
   end
-
   def profilegrp
-    if (not @profilegrp) and  @profilegrp.valid?
+    if (not @profilegrp) or not @profilegrp.valid?
       @profilegrp = Sketchup::active_model.entities.add_group()
       @profilelayer = Sketchup::active_model.layers.add('Cut Profile')
       @profilegrp.layer = @profilelayer
@@ -137,49 +135,52 @@ class Transformer
 ### you can also copy over other attributes of 'other_group' if appropriate
 
   def transform(edges, outer: false)
-    # TODO Add a common layer when creating new bits
+    # Create a group for the duplicated edges
     pathgrp = @facegrp.entities.add_group()
-    pathparts = edges.map { |edge|
-      xf_edges = nil
-      pstart = edge.start.position.transform!(@xform)
-      # Keep track of the bounds of the loop after transform
-      # See also Curve.first_edge and Curve.last_edge
+    # Duplicate the face edges. map returns single edges as [edge] and arcs as [edge,edge,...]
+    #  plus nils for subsequent arc edges - this all to maintain the arc metadata - then joined at end
+    # with reduce()
+    dupedges = edges.map { |edge|
       if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
-        ellipse = edge.curve
-        # Many edges (line segments) are part of one ArcCurve, process once
-        if not @curves.member?(ellipse)
-          @curves << ellipse
-          # Duplicate the arc, then transform it onto z=0 plane
+        ell_orig = edge.curve
+        # FIRST edge in an arc retrieves arc metadata and regenerates ALL arc edges,
+        # Subsequent arc edges ignored, returning nil
+        if not @curves.member?(ell_orig)
+          @curves << ell_orig
+          # Take unit circle, apply ellxform to duplicate original arc...
           # start, end angle invariant
-          unitcircle_edges = pathgrp.entities.add_arc(
-            ORIGIN, X_AXIS, Z_AXIS, 1.0, ellipse.start_angle, ellipse.end_angle)
-          ellxform = Geom::Transformation.new( ellipse.xaxis, ellipse.yaxis, ellipse.normal, ellipse.center)
+          elledges = pathgrp.entities.add_arc(
+            ORIGIN, X_AXIS, Z_AXIS, 1.0, ell_orig.start_angle, ell_orig.end_angle)
+          ellxform = Geom::Transformation.new( ell_orig.xaxis, ell_orig.yaxis, ell_orig.normal, ell_orig.center)
+          pathgrp.entities.transform_entities(ellxform, elledges)
+          # ... then transform it onto z=0 plane (could combine as product of two transforms...)
 
-          ### Work in progress...xs
-
-          xf_edges.each {
-            |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
-          }
-          # TODO after refactoring, transformation may be available differently
-          # TODO properly need facegrp and pathgrp transformation (but latter is identity?)
+          elledges
+        else
+          nil
         end
       else
-        pend = edge.end.position.transform!(@xform)
-        xf_edges = pathgrp.entities.add_edges([pstart,pend])
-        xf_edges.each {
-          |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
-        }
+        xf_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
       end
-      # Get extents from all outer transformed edges, including segments in an arc  
-      if outer
-        @minx = [pstart[0], @minx].min
-        @miny = [pstart[1], @miny].min
-        @maxx = [pstart[0], @maxx].max
-        @maxy = [pstart[1], @maxy].max
-      end
-      xf_edges
-    }.reject(&:nil?)
-    
+    }.reject(&:nil?).reduce(&:+)
+    # Then transform to z=0 using common face xform
+    pathgrp.entities.transform_entities(@xform, dupedges)
+
+    # Find the bounds of the loop after transform
+    if outer
+      dupedges.each { |e| 
+        x,y = e.start.position[0], e.start.position[1]
+        @minx = [x, @minx].min
+        @miny = [y, @miny].min
+        @maxx = [x, @maxx].max
+        @maxy = [y, @maxy].max
+      }
+    end
+    # Maybe something like  this is useful
+    # dupedges.each {
+    #    |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
+    # }
+
   end
 
   def process_selection()

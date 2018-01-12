@@ -1,7 +1,7 @@
 require 'sketchup'
 
 def pp(cir)
-  print "cxy, %0.3f %0.3f, r %0.3f,  st ang %0.3f end ang %0.3f xaxis %0.3f %0.3f %0.3f |%0.3f| yaxis  %0.3f %0.3f %0.3f |%0.3f| \n" % (
+  print "cxy, %0.3f %0.3f %0.3f, r %0.3f,  st ang %0.3f end ang %0.3f xaxis %0.3f %0.3f %0.3f |%0.3f| yaxis  %0.3f %0.3f %0.3f |%0.3f| \n" % (
           cir.center.to_a + [cir.radius, cir.start_angle, cir.end_angle] +
           cir.xaxis.to_a + [cir.xaxis.length] + cir.yaxis.to_a + [cir.yaxis.length] )
 end
