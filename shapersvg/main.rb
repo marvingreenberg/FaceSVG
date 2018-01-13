@@ -44,15 +44,22 @@ module ShaperSVG
     @@out_filename = '/Users/mgreenberg/example.svg'
     @@segments = true
     @@text = true
-    @@xformer = ShaperSVG::Layout::Transformer.new
-
+    @@xformer = {}
+    
+    # On Mac, can have multiple open models, keep separate tranfrom instance for each model
+    def transformer()
+      title = Sketchup::active_model.title or 'Untitled'
+      xf = @@xformer[title] or ShaperSVG::Layout::Transformer.new
+      @@xformer[title] = xf
+    end
+      
     def _handle(exception)
       UI.messagebox exception.backtrace.reject(&:empty?).join("\n**")
       UI.messagebox exception.to_s
     end
 
     def shapersvg_2d_layout
-      @@xformer.process_selection()
+      transformer().process_selection()
     rescue => exception
       _handle(exception)
       raise
@@ -61,7 +68,7 @@ module ShaperSVG
     def shapersvg_write
       # Write the SVG file
       File.open(@@out_filename,'w') do |f|
-        @@xformer.write(f)
+        transformer().write(f)
       end
     rescue => exception
       _handle(exception)
@@ -70,14 +77,14 @@ module ShaperSVG
       
     def shapersvg_reset
       # Delete the cut path layout
-      @@xformer.reset
+      transformer().reset
     rescue => exception
       _handle(exception)
       raise
     end
 
-    def shapersvg_mark_face(sel)
-      @@xformer.mark_face(sel)
+    def shapersvg_toggle_mark_face(sel)
+      transformer().toggle_mark_face(sel)
     end
     
     def shapersvg_settings
