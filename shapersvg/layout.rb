@@ -63,10 +63,11 @@ class Transformer
     if @profilegrp && @profilegrp.valid?  # hasn't been deleted manually
       Sketchup.active_model.entities.erase_entities @profilegrp
     end
+    @selected_model_faces.each { |f| f.material = nil }
     self.clear
   end
   
-  def mark_face(selections)
+  def toggle_mark_face(selections)
     selections.each { |face|
       if face.is_a? Sketchup::Face 
         if @selected_model_faces.member?(face)

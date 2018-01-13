@@ -95,13 +95,14 @@ module ShaperSVG
     
     unless file_loaded?(__FILE__)  || @@menus_set
       begin
-        menu = UI.menu('Plugins')
-        menu.add_item('ShaperSVG 2D Layout') {
-          shapersvg_2d_layout
-        }
-        menu.add_item('ShaperSVG Settings') {
-          shapersvg_settings
-        }
+        # No point to static menu for now 
+        # menu = UI.menu('Plugins')
+        # menu.add_item('ShaperSVG 2D Layout') {
+        #   shapersvg_2d_layout
+        # }
+        # menu.add_item('ShaperSVG Settings') {
+        #   shapersvg_settings
+        # }
         
         UI.add_context_menu_handler do |context_menu|
           selset = Sketchup::active_model.selection
@@ -110,7 +111,7 @@ module ShaperSVG
           _sm.add_item('Write SVG profile') { shapersvg_write }
           _sm.add_item('Layout SVG profile') { shapersvg_2d_layout }
           if selset.size > 1
-            _sm.add_item('Mark face(s)') { shapersvg_mark_face(selset) }
+            _sm.add_item('Mark/unmark face(s)') { shapersvg_toggle_mark_face(selset) }
           end
         end # context_menu_handler
 
