@@ -87,18 +87,18 @@ module ShaperSVG
       transformer().toggle_mark_face(sel)
     end
     
-    def shapersvg_settings
-      # No real useful settings yet
-      inputs = UI.inputbox(
-        ["Output filename", "Segments", "Text"],
-        [@@out_filename, @@segments, @@text],
-        ["","on|off","on|off"],
-        "--------                 SVG Export Settings                 -----------")
-      @@out_filename, @@segments, @@text = inputs if inputs
-    rescue => exception
-      _handle(exception)
-      raise
-    end
+    # def shapersvg_settings
+    #   # No real useful settings yet
+    #   inputs = UI.inputbox(
+    #     ["Output filename", "Segments", "Text"],
+    #     [@@out_filename, @@segments, @@text],
+    #     ["","on|off","on|off"],
+    #     "--------                 SVG Export Settings                 -----------")
+    #   @@out_filename, @@segments, @@text = inputs if inputs
+    # rescue => exception
+    #   _handle(exception)
+    #   raise
+    # end
     
     unless file_loaded?(__FILE__)  || @@menus_set
       begin
