@@ -126,6 +126,16 @@ class Transformer
 
   end
 
+
+  def to_z0(face)
+    Geom::Transformation.new(face.bounds.min, face.normal).inverse
+  end
+
+  def doxf(xf)
+    Sketchup::active_model.entities.transform_entities(xf, Sketchup::active_model.selection.to_a ); end
+
+  def area(); "Area %s Perim %s" % [Sketchup::active_model.selection[0].area, Sketchup::active_model.selection[0].edges.map { |e| e.length }.reduce( &:+ )]; end
+
   # Re: Adding objects into a group/component
   # Sketchup API documentation is embarrassingly TERRIBLE
 #Try
@@ -151,10 +161,11 @@ class Transformer
           # start, end angle invariant
           elledges = pathgrp.entities.add_arc(
             ORIGIN, X_AXIS, Z_AXIS, 1.0, ell_orig.start_angle, ell_orig.end_angle)
-          ellxform = Geom::Transformation.new( ell_orig.xaxis, ell_orig.yaxis, ell_orig.normal, ell_orig.center)
+          ellxform = Geom::Transformation.new(
+            ell_orig.xaxis.to_a + [0.0] +  ell_orig.yaxis.to_a + [0.0] +
+            ell_orig.normal.to_a + [0.0] + ell_orig.center.to_a + [1.0])
           pathgrp.entities.transform_entities(ellxform, elledges)
           # ... then transform it onto z=0 plane (could combine as product of two transforms...)
-
           elledges
         else
           nil
@@ -163,6 +174,7 @@ class Transformer
         xf_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
       end
     }.reject(&:nil?).reduce(&:+)
+
     # Then transform to z=0 using common face xform
     pathgrp.entities.transform_entities(@xform, dupedges)
 
@@ -181,6 +193,21 @@ class Transformer
     #    |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
     # }
 
+    # Group the edges into single line edges, and
+    # arrays of ArcCurve edges
+    groupedEdges = dupedges.map { |edge|
+      if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
+        if not @curves.member?(edge.curve)
+          nil  # return nil for subsequent edges from same ArcCurve
+        else
+          @curves.pop(edge.curve)  # process ArcCurve once, returning edges as an array
+          edge.curve.edges  # return arc as multi-element array of edges
+        end
+      else
+        [ edge ]   # Return line as 1-element array of edges
+      end
+    }.reject(&:nil?)
+    
   end
 
   def process_selection()
@@ -201,7 +228,7 @@ class Transformer
         # much info in transform()
 
         # Return array of edge arrays.  If edge array size>1 it is an arc
-        edgesarr = self.transform(face.outer_loop.edges, outer: true)
+        edges_arr = self.transform(face.outer_loop.edges, outer: true)
 
         # After outerloop is calculated, can layout the whole facegrp
         # which calculates the facegrp transformation.  All the path loops
@@ -213,7 +240,7 @@ class Transformer
         ### Let the designer interact with the created cutting paths before emitting
         ### SVG, say to change layout or delete items to be cut...
         @loops << ShaperSVG::SVG::Loop.create(
-          @facegrp.transformation, edgesarr, outer: true)
+          @facegrp.transformation, edges_arr, outer: true)
 
         # For any inner loops, don't recalculate the extents
         face.loops.each { |loop|
