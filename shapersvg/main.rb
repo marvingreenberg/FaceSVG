@@ -29,8 +29,9 @@ load 'shapersvg/layout.rb'
 # https://www.codeproject.com/Articles/210979/Fast-optimizing-rectangle-packing-algorithm-for-bu
 # for way to simply arrange the rectangles efficiently in layout, maybe overkill.
 
-SPACING = 1.0 # 1" spacing
-SHEETWIDTH = 48.0
+SPACING = 0.5 # 1/2" spacing
+SHEETWIDTH = 24.0
+SHEETHEIGHT = 24.0
 
 module ShaperSVG
 
@@ -38,19 +39,17 @@ module ShaperSVG
 
   module Main
 
+    @@default_dir = nil
+
     extend self # Ruby is weird.  Make Main module act like a singleton class
     
     @@menus_set ||= false
-    @@out_filename = '/Users/mgreenberg/example.svg'
-    @@segments = true
-    @@text = true
-    @@xformer = {}
+    @@xformer = Hash.new { |h,k| h[k] = ShaperSVG::Layout::Transformer.new(k) } 
     
     # On Mac, can have multiple open models, keep separate tranfrom instance for each model
     def transformer()
       title = Sketchup::active_model.title or 'Untitled'
-      xf = @@xformer[title] or ShaperSVG::Layout::Transformer.new
-      @@xformer[title] = xf
+      @@xformer[title]
     end
       
     def _handle(exception)
@@ -58,6 +57,10 @@ module ShaperSVG
       UI.messagebox exception.to_s
     end
 
+    def default_dir(); @@default_dir; end
+    def default_dir=(d); @@default_dir = d; end
+    
+    
     def shapersvg_2d_layout
       transformer().process_selection()
     rescue => exception
@@ -67,9 +70,7 @@ module ShaperSVG
 
     def shapersvg_write
       # Write the SVG file
-      File.open(@@out_filename,'w') do |f|
-        transformer().write(f)
-      end
+      transformer().write()
     rescue => exception
       _handle(exception)
       raise

@@ -15,7 +15,7 @@ module SVG
   # Sketchup is a mess - it draws curves and keeps information about them
   #  but treats everything as edges
   # Create class to aggregate ArcCurve with its associated Edges
-  # Instead of largeArc, break every arc into two pieces if largeArc?
+  # For some reason, need to iterate across edges from endxy to startxy,
   class ArcObject
     # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
     # with accurate arc information    
@@ -42,13 +42,13 @@ module SVG
         val = ((f1 % f2) * 2) / ((f1 % f1) - (f2 % f2))  
         vertex_angle1 = Math::atan(val) / 2
         vertex_angle2 = vertex_angle1 + Math::PI/2
-        @vx = ellipAtAngle(vertex_xangle1)
+        @vx = ellipAtAngle(vertex_angle1)
         @vy = ellipAtAngle(vertex_angle2)
         @rx = @vx.length
         @ry = @vy.length
       end
-      # Angle of x vertex vector
-      @xrot = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0]).radians
+      # Angle of x vertex vector, converted from radians
+      @xrotdeg = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0]).radians
     end
     
     def ellipAtAngle(ang)
@@ -78,18 +78,18 @@ module SVG
       # angle > PI, draw arc up to PI, then PI to end angle
       centerxy = [@curve.center[0],@curve.center[1]]
       r = @curve.radius.round(3)
-      # large arc is always false, always draw two arcs if > 180
+      # large arc is always false, always draw two arcs if > PI
       largeArc= '0'
       # sweep may need to be calculated from something, like where center is
       sweep = '0'
-      midpoint = self.PI_xy # may be nil
-      endpoint = self.endxy 
-      ( (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + 
+      midpoint = self.PI_xy # may be nil nil, if only one arc
+      startpoint = self.startxy # for some reason, edges order requires draw from end->start
+      ( (prev.nil? ? "M #{FMT} #{FMT}" % self.endxy : '') + 
         ( midpoint.nil? ? '' : 
             (" A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
              [@rx, @ry, @xrotdeg, largeArc, sweep, midpoint[0], midpoint[1]] )) +
         " A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-          [@rx, @ry, @xrotdeg, largeArc, sweep, endpoint[0], endpoint[1]] )
+          [@rx, @ry, @xrotdeg, largeArc, sweep, startpoint[0], startpoint[1]] )
     end
   end
         
@@ -109,6 +109,7 @@ module SVG
       [p[0],p[1]] # x,y
     end
     def svgdata(prev)
+      
       (prev.nil? ? "M #{FMT} #{FMT}" % self.endxy : '') + (
         " L #{FMT} #{FMT}" % self.startxy)
     end
@@ -179,6 +180,7 @@ module SVG
     end
 
     def write(file)
+      file.write("<!-- ARC is A xrad yrad xrotation-degrees largearc sweep end_x end_y -->\n")
       @root.write(file)
     end
 
@@ -226,15 +228,13 @@ module SVG
     def self.create(xform, edgesarray, outer)
       Loop.new( 
         edgesarray.map { |edgearr|
-          (edgearr.size == 1 ?
-             EdgeObject.new(xform, edgearr)
-           :
-             ArcObject.new(xform, edgearr)
-          )
+          (edgearr[0].curve.nil?() ?
+             EdgeObject.new(xform, edgearr) : ArcObject.new(xform, edgearr))
         }, outer)
     end   
     
     def initialize(pathparts, outer:false)
+      # pathparts: array of ArcObjects and EdgeObjects
       @pathparts = pathparts
       if outer
         @attributes = { path_type: "exterior", fill: "rgb(0,0,0)" }

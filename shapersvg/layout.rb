@@ -16,7 +16,6 @@ load 'shapersvg/svg.rb'
 # Sketchup API is a litle strange - many operations create edges, but actually maintain a higher resolution 
 #   circular or elliptical arc.  Still need to figure out various transforms, applied to shapes
 
-
 # SVG units are: in, cm, mm
 INCHES = 'in'
 CM = 'cm'
@@ -34,7 +33,8 @@ PK_GUIDE = 'guide'
 class Transformer
   # Transform the points in a face loop, and find the min,max x,y in
   #   the z=0 plane
-  def initialize()
+  def initialize(title)
+    @title = title
     self.clear()
   end
   
@@ -81,12 +81,18 @@ class Transformer
     }
   end
 
-  def write(file)
-    svg = ShaperSVG::SVG::Canvas.new(@viewport, INCHES, ShaperSVG::ADDIN_VERSION)
-    svg.title('Title')                 
-    svg.desc('Description')
-    @loops.each { |loop| svg.path(loop.svgdata, loop.attributes) }
-    svg.write(file)
+  def write()
+    filepath = UI.savepanel("SVG output file", ShaperSVG::Main::default_dir, "%s.svg"%@title)
+    if filepath
+         File.open(filepath,'w') do |file|
+         ShaperSVG::Main.default_dir = File::dirname(filepath)
+         svg = ShaperSVG::SVG::Canvas.new(@viewport, INCHES, ShaperSVG::ADDIN_VERSION)
+         svg.title("%s cut profile" % @title)                 
+         svg.desc('Shaper cut profile from Sketchup model %s' % @title)
+         @loops.each { |loop| svg.path(loop.svgdata, loop.attributes) }
+         svg.write(file)
+       end
+    end
   end
 
   def change_face(face)
@@ -115,27 +121,15 @@ class Transformer
     # As each element is layed out horizontally, keep track of the tallest bit
     @rowheight = [@rowheight, @maxy - @miny].max
     if @layoutx > SHEETWIDTH
-      @layoutx = 0.0
-      @layouty += @rowheight
+      @layoutx = 0.0 + SPACING
+      @layouty += @rowheight + SPACING
       @rowheight = 0.0
     end
     # Adjust the x, y max for viewport as each face is laid out
     @viewport[3] = [@viewport[3],@layouty+@rowheight].max
     @viewport[2] = [@viewport[2],@layoutx].max
 
-
-
   end
-
-
-  def to_z0(face)
-    Geom::Transformation.new(face.bounds.min, face.normal).inverse
-  end
-
-  def doxf(xf)
-    Sketchup::active_model.entities.transform_entities(xf, Sketchup::active_model.selection.to_a ); end
-
-  def area(); "Area %s Perim %s" % [Sketchup::active_model.selection[0].area, Sketchup::active_model.selection[0].edges.map { |e| e.length }.reduce( &:+ )]; end
 
   # Re: Adding objects into a group/component
   # Sketchup API documentation is embarrassingly TERRIBLE
@@ -149,8 +143,7 @@ class Transformer
     # Create a group for the duplicated edges
     pathgrp = @facegrp.entities.add_group()
     # Duplicate the face edges. map returns single edges as [edge] and arcs as [edge,edge,...]
-    #  plus nils for subsequent arc edges - this all to maintain the arc metadata - then joined at end
-    # with reduce()
+    #  plus nils for subsequent arc edges - this all to maintain the arc metadata 
     dupedges = edges.map { |edge|
       if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
         ell_orig = edge.curve
@@ -167,21 +160,23 @@ class Transformer
             ell_orig.normal.to_a + [0.0] + ell_orig.center.to_a + [1.0])
           pathgrp.entities.transform_entities(ellxform, elledges)
           # ... then transform it onto z=0 plane (could combine as product of two transforms...)
+          print "%s\n" % [elledges]
           elledges
         else
           nil
         end
       else
-        xf_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
+        line_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
       end
-    }.reject(&:nil?).reduce(&:+)
+    }.reject(&:nil?)
+    # dupedges is array of edge arrays: 1-elt array is a line, else arc
 
-    # Then transform to z=0 using common face xform
-    pathgrp.entities.transform_entities(@xform, dupedges)
+    # Then transform to z=0 using common face xform (flatten into plain array)
+    pathgrp.entities.transform_entities(@xform, dupedges.flatten)
 
     # Find the bounds of the loop after transform
     if outer
-      dupedges.each { |e| 
+      dupedges.flatten.each { |e| 
         x,y = e.start.position[0], e.start.position[1]
         @minx = [x, @minx].min
         @miny = [y, @miny].min
@@ -194,21 +189,9 @@ class Transformer
     #    |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
     # }
 
-    # Group the edges into single line edges, and
-    # arrays of ArcCurve edges
-    groupedEdges = dupedges.map { |edge|
-      if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
-        if not @curves.member?(edge.curve)
-          nil  # return nil for subsequent edges from same ArcCurve
-        else
-          @curves.pop(edge.curve)  # process ArcCurve once, returning edges as an array
-          edge.curve.edges  # return arc as multi-element array of edges
-        end
-      else
-        [ edge ]   # Return line as 1-element array of edges
-      end
-    }.reject(&:nil?)
-    
+    print "dupedges size %s %s\n" % [dupedges.length, outer]
+
+    dupedges
   end
 
   def process_selection()
