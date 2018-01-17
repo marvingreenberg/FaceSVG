@@ -30,6 +30,97 @@ PK_INNER = 'inner'
 PK_OUTER = 'outer'
 PK_GUIDE = 'guide'
 
+# format a position with more brevity
+def self.pos_s(p); "(%s,%s,%s)" % p.to_a.map { |m| m.round(2) }; end
+# Sometimes, code to duplicate arc gets end point off by some .01
+#  which screws up key.  So round keys to nearest 0.05
+
+# Compare two endpoints with tolerance
+TOLERANCE = 0.05
+def self.samepos(pos1, pos2)
+  (pos1-pos2).length < TOLERANCE
+end
+  
+# The ordering of edges in sketchup face boundaries seems arbitrary, make predictable
+# Start at arbitray element, order edges/arcs with endpoints like (e0,e1),(e1,e2),(e2,e3)...(eN,e0)xs
+def self.reorder(globs)
+  globs = globs.clone
+
+  ordered = [globs[0]]
+  globs.delete_at(0)
+
+  while globs.size > 0
+    prev_elt = ordered[-1]
+    globs.each_with_index do |g,i|
+      if ShaperSVG::Layout.samepos(prev_elt.endpos, g.startpos)
+        # found next edge, normal end -> start
+        ordered << g
+        globs.delete_at(i)
+        break
+      elsif ShaperSVG::Layout.samepos(prev_elt.endpos, g.endpos)
+        # reversed edge, end -> end
+        ordered << g.reverse
+        globs.delete_at(i)
+        break
+      end
+      if i == (globs.size - 1) # at end
+        raise "Unexpected: No edge/arc connected %s to at %s" % [prev_elt, ShaperSVG::Layout.pos_s(prev_elt.endpos)]
+      end
+    end
+  end
+  ordered
+end
+    
+# These "globs" collect the edges for an arc with metadata and control to reverse orientation
+# An edge glob is just a single edge.
+class ArcGlob < Array
+  def initialize(elements)
+    super()
+    self.concat(elements)
+  end
+  #  Hold the edges that make up an arc as edge array
+
+  def to_s; 'Arc %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
+  def inspect; to_s; end
+  def crv(); self[0].curve; end
+  def startpos()
+    @reverse ? crv.last_edge.end.position : crv.first_edge.start.position
+  end
+  def endpos()
+    @reverse ? crv.first_edge.start.position : crv.last_edge.end.position
+  end
+  def reverse(); @reverse = true; self; end
+  def isArc(); true; end
+
+  def endpt()
+    self[0].curve.edges[-1].end.position
+  end
+end
+
+class EdgeGlob < Array
+  # Hold a single edge [edge] in fashion analagous to ArcGlob
+  def initialize(elements)
+    super()
+    self.concat(elements)
+    @reverse = false
+  end
+  def to_s; 'Edge %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
+  def inspect; to_s; end
+  def startpos()
+    @reverse ? self[0].end.position : self[0].start.position
+  end
+  def endpos()
+    @reverse ? self[0].start.position : self[0].end.position
+  end
+  # Reverse the ordering reported when asked for start or end
+  def reverse(); @reverse = true; self; end
+  def isArc(); false; end
+  
+  def endpt()
+    self[0].end.position
+  end
+end
+
 class Transformer
   # Transform the points in a face loop, and find the min,max x,y in
   #   the z=0 plane
@@ -133,18 +224,18 @@ class Transformer
 
   # Re: Adding objects into a group/component
   # Sketchup API documentation is embarrassingly TERRIBLE
-#Try
-#group.entities.add_instance(other_group.entities.parent, other_group.transformation*group.transformation)
-#other_group.entities.parent.instances[1].material=other_group.material
-#other_group.entities.parent.instances[1].layer=other_group.layer
-### you can also copy over other attributes of 'other_group' if appropriate
+  #Try
+  #group.entities.add_instance(other_group.entities.parent, other_group.transformation*group.transformation)
+  #other_group.entities.parent.instances[1].material=other_group.material
+  #other_group.entities.parent.instances[1].layer=other_group.layer
+  ### you can also copy over other attributes of 'other_group' if appropriate
 
   def transform(edges, outer: false)
     # Create a group for the duplicated edges
     pathgrp = @facegrp.entities.add_group()
     # Duplicate the face edges. map returns single edges as [edge] and arcs as [edge,edge,...]
-    #  plus nils for subsequent arc edges - this all to maintain the arc metadata 
-    dupedges = edges.map { |edge|
+    #  plus nils for subsequent arc edges - this all to maintain the arc metadata
+    dupedges = edges.map { |edge| 
       if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
         ell_orig = edge.curve
         # FIRST edge in an arc retrieves arc metadata and regenerates ALL arc edges,
@@ -159,19 +250,19 @@ class Transformer
             ell_orig.xaxis.to_a + [0.0] +  ell_orig.yaxis.to_a + [0.0] +
             ell_orig.normal.to_a + [0.0] + ell_orig.center.to_a + [1.0])
           pathgrp.entities.transform_entities(ellxform, elledges)
-          # ... then transform it onto z=0 plane (could combine as product of two transforms...)
-          print "%s\n" % [elledges]
-          elledges
+          ArcGlob.new(elledges)
         else
           nil
         end
       else
         line_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
+        EdgeGlob.new(line_edges)
       end
     }.reject(&:nil?)
-    # dupedges is array of edge arrays: 1-elt array is a line, else arc
+    # dupedges is array of LayoutEdge and LayoutArcs
 
-    # Then transform to z=0 using common face xform (flatten into plain array)
+    # Transform all edges to z=0 using common face xform (flatten into plain array)
+    # Note - may be issues when the original face is in a group, etc...  Multiple transforms
     pathgrp.entities.transform_entities(@xform, dupedges.flatten)
 
     # Find the bounds of the loop after transform
@@ -185,17 +276,15 @@ class Transformer
       }
     end
     # Maybe something like  this is useful
-    # dupedges.each {
+    # edges.each {
     #    |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
     # }
 
-    print "dupedges size %s %s\n" % [dupedges.length, outer]
-
-    dupedges
+    ShaperSVG::Layout.reorder(dupedges)
   end
 
   def process_selection()
-    @selected_model_faces.each { |elt|
+    @selected_model_faces.each do |elt|
       # Test for group is dead code from earllier iterations...
       if elt.is_a?(Sketchup::Group)
         # Recurse down into groups to find faces in selected groups
@@ -212,8 +301,9 @@ class Transformer
         # much info in transform()
 
         # Return array of edge arrays.  If edge array size>1 it is an arc
-        edges_arr = self.transform(face.outer_loop.edges, outer: true)
+        glob_arr = self.transform(face.outer_loop.edges, outer: true)
 
+        puts "Outer %s\n" % [glob_arr]
         # After outerloop is calculated, can layout the whole facegrp
         # which calculates the facegrp transformation.  All the path loops
         # are in the facegroup
@@ -224,18 +314,18 @@ class Transformer
         ### Let the designer interact with the created cutting paths before emitting
         ### SVG, say to change layout or delete items to be cut...
         @loops << ShaperSVG::SVG::Loop.create(
-          @facegrp.transformation, edges_arr, outer: true)
+          @facegrp.transformation, glob_arr, outer: true)
 
         # For any inner loops, don't recalculate the extents
-        face.loops.each { |loop|
+        face.loops.each do |loop|
           if not loop.equal?(face.outer_loop)
-            edgesarr = self.transform(loop.edges)
+            glob_arr = self.transform(loop.edges)
             @loops << ShaperSVG::SVG::Loop.create(
-              @facegrp.transformation, edgesarr, outer: false)          
+              @facegrp.transformation, glob_arr, outer: false)          
           end
-        }
+        end
       end
-    }
+    end
   end
 end
 

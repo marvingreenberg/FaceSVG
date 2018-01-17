@@ -1,16 +1,12 @@
 # Simple Node object to construct SVG XML output (no built in support for XML in ruby)
 
-# This allows reloading modules as modifications are made
-begin
-  Object.send(:remove_const, :SVG)
-rescue => exception
-  true
-end
-
 FMT = '%0.3f'
 
 module ShaperSVG
 module SVG
+    
+  # format a position with more brevity
+  def self.pos_s(xy); "(%s,%s)" % xy.to_a.map { |m| m.round(2) }; end
 
   # Sketchup is a mess - it draws curves and keeps information about them
   #  but treats everything as edges
@@ -19,16 +15,43 @@ module SVG
   class ArcObject
     # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
     # with accurate arc information    
-    def initialize(xform, curve_edges)
+    def initialize(xform, arcglob)
       @xform = xform
-      @curve = curve_edges[0].curve
+      @curve = arcglob.crv
       # Ensure the edges are ordered as a path
-      @edges = @curve.edges
+      @glob = arcglob
       self.ellipse_parameters()
-
-      # curve has curve.center, curve.radius, curve.xaxis, curve.yaxis, curve.start_angle, curve.end_angle
+      @startxy = @glob.startpos.transform(@xform).to_a[0,2]
+      @endxy = @glob.endpos.transform(@xform).to_a[0,2]      
     end
-    # Note, by this point all paths should be transformed to z=0, but still treat all as 3d for simplicity
+
+    def sweep()
+      # Calculate the sweep from the orientation of the endpoints start -> finish,
+      #   and the center, ref below may be relevant.  Maybe dot product  of normal and start->end
+      # https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+      '0'
+    end
+    
+    def startxy()
+      @startxy
+    end
+    def endxy()
+      @endxy
+    end
+
+    def PI_xy()
+      # return nil if < 180 degree arc.
+      # center + @vx is start, 180 degrees away  is (center - @vx)
+      if (@curve.end_angle - @curve.start_angle) > Math::PI
+        p = @center - @vx
+        p.to_a[0,2]
+      else
+        nil
+      end
+    end
+
+    # curve has curve.center, curve.radius, curve.xaxis, curve.yaxis, curve.start_angle, curve.end_angle
+    # Note, by this point all paths should be transformed to z=0.  But all the vectors below are still in 3D
     # From https://en.wikipedia.org/wiki/Ellipse#Ellipse_as_an_affine_image_of_the_unit_circle_x%C2%B2+y%C2%B2=1
     def ellipse_parameters()
       # circle
@@ -47,6 +70,7 @@ module SVG
         @rx = @vx.length
         @ry = @vy.length
       end
+      @center = @curve.center.transform(@xform)
       # Angle of x vertex vector, converted from radians
       @xrotdeg = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0]).radians
     end
@@ -57,61 +81,49 @@ module SVG
       Geom::Vector3d.new( [0,1,2].map { |i|  @curve.xaxis[i]*cosa + @curve.yaxis[i]*sina } )
     end
 
-    def startxy()
-      p = @edges[0].start.position.transform(@xform)
-      [p[0],p[1]] # x,y
-    end
-    def PI_xy()
-      # return nil if < 180 degree arc.
-      # center + @vx is start, 180 degrees away  is (center - @vx)
-      if (@curve.end_angle - @curve.start_angle) > Math::PI
-        p = @curve.center.transform(@xform) - @vx
-        [p[0], p[1]]
-      end
-    end
-          
-    def endxy()
-      p = @edges[-1].end.position.transform(@xform)
-      [p[0],p[1]] # x,y
-    end
     def svgdata(prev)
       # angle > PI, draw arc up to PI, then PI to end angle
       centerxy = [@curve.center[0],@curve.center[1]]
       r = @curve.radius.round(3)
       # large arc is always false, always draw two arcs if > PI
       largeArc= '0'
-      # sweep may need to be calculated from something, like where center is
-      sweep = '0'
       midpoint = self.PI_xy # may be nil nil, if only one arc
-      startpoint = self.startxy # for some reason, edges order requires draw from end->start
-      ( (prev.nil? ? "M #{FMT} #{FMT}" % self.endxy : '') + 
+      endpoint = self.endxy
+
+      if prev.nil?
+        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(self.startxy)]
+      end
+      puts "Arc to %s" % [ShaperSVG::SVG.pos_s(endpoint)]
+      
+      ( (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + 
         ( midpoint.nil? ? '' : 
             (" A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-             [@rx, @ry, @xrotdeg, largeArc, sweep, midpoint[0], midpoint[1]] )) +
+             [@rx, @ry, @xrotdeg, largeArc, self.sweep(), midpoint[0], midpoint[1]] )) +
         " A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-          [@rx, @ry, @xrotdeg, largeArc, sweep, startpoint[0], startpoint[1]] )
+          [@rx, @ry, @xrotdeg, largeArc, self.sweep(), endpoint[0], endpoint[1]] )
     end
   end
         
   class EdgeObject
     # Edge is a single line segment with a start and end x,y
-    def initialize(xform, edges)
+    def initialize(xform, edgeglob)
       @xform = xform
-      @edges = edges # Always one-element array
+      @glob = edgeglob
+      @startxy = @glob.startpos.transform(@xform).to_a[0,2]
+      @endxy = @glob.endpos.transform(@xform).to_a[0,2]      
     end
-    def startxy()
-      p = @edges[0].start.position.transform(@xform)
-      [p[0],p[1]] # x,y
-    end
-    def endxy()
-      # some comment about start,end and edge ordering
-      p = @edges[0].end.position.transform(@xform)
-      [p[0],p[1]] # x,y
-    end
+    def startxy(); @startxy; end
+    def endxy(); @endxy; end
+
     def svgdata(prev)
+
+      if prev.nil?
+        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(self.startxy)]
+      end
+      puts "Line to %s" % [ShaperSVG::SVG.pos_s(self.endxy)]
       
-      (prev.nil? ? "M #{FMT} #{FMT}" % self.endxy : '') + (
-        " L #{FMT} #{FMT}" % self.startxy)
+      (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
+        " L #{FMT} #{FMT}" % self.endxy)
     end
   end
 
@@ -224,12 +236,12 @@ module SVG
   end
 
   class Loop
-    # class Loop factory method
-    def self.create(xform, edgesarray, outer)
+    # class Loop factory method.  See "Globs" in layout.rb, basically
+    # to aggregate edges with arc metadata, and deal with ordering
+    def self.create(xform, glob_arr, outer)
       Loop.new( 
-        edgesarray.map { |edgearr|
-          (edgearr[0].curve.nil?() ?
-             EdgeObject.new(xform, edgearr) : ArcObject.new(xform, edgearr))
+        glob_arr.map { |glob|
+          glob.isArc() ? ArcObject.new(xform, glob) : EdgeObject.new(xform, glob)
         }, outer)
     end   
     

@@ -28,6 +28,27 @@ def cir(r)
   c
 end
 
+def curfac()
+  f = am.selection[0]
+  f.is_a?(Sketchup::Face) ? f : nil
+end
+
+def ej(e)
+  "<(%s,%s) (%s,%s)>\n" % [e.start.position[0],e.start.position[1],e.end.position[0],e.end.position[1]].map {|p| p.round(2)}
+end
+
+def fe()
+  crv = nil
+  curfac.edges.each do |e|
+    if e.curve.nil?
+      print ej(e)
+    elsif e.curve != crv
+      crv = e.curve
+      print ej(crv.first_edge)
+      print ej(crv.last_edge)
+    end
+  end
+end
 # Solve ellipse  h,k center
 # (x - h)^2 / (a^2) + (y-k)^2 / b^2 = 1
 # Know two points, the "xaxis" and "yaxis"
