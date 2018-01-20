@@ -1,7 +1,7 @@
 # Simple Node object to construct SVG XML output (no built in support for XML in ruby)
 
 FMT = '%0.3f'
-
+      
 module ShaperSVG
 module SVG
     
@@ -17,37 +17,26 @@ module SVG
     # with accurate arc information    
     def initialize(xform, arcglob)
       @xform = xform
-      @curve = arcglob.crv
+      @crv = arcglob.crv
       # Ensure the edges are ordered as a path
       @glob = arcglob
       self.ellipse_parameters()
+
       @startxy = @glob.startpos.transform(@xform).to_a[0,2]
-      @endxy = @glob.endpos.transform(@xform).to_a[0,2]      
+      @endxy = @glob.endpos.transform(@xform).to_a[0,2]
     end
 
+    def startxy(); @startxy; end
+    def midxy(); @midxy; end
+    def endxy(); @endxy; end
+
+    # https://gamedev.stackexchange.com/questions/45412/
+    #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
     def sweep()
       # Calculate the sweep from the orientation of the endpoints start -> finish,
       #   and the center, ref below may be relevant.  Maybe dot product  of normal and start->end
       # https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
       '0'
-    end
-    
-    def startxy()
-      @startxy
-    end
-    def endxy()
-      @endxy
-    end
-
-    def PI_xy()
-      # return nil if < 180 degree arc.
-      # center + @vx is start, 180 degrees away  is (center - @vx)
-      if (@curve.end_angle - @curve.start_angle) > Math::PI
-        p = @center - @vx
-        p.to_a[0,2]
-      else
-        nil
-      end
     end
 
     # curve has curve.center, curve.radius, curve.xaxis, curve.yaxis, curve.start_angle, curve.end_angle
@@ -55,52 +44,66 @@ module SVG
     # From https://en.wikipedia.org/wiki/Ellipse#Ellipse_as_an_affine_image_of_the_unit_circle_x%C2%B2+y%C2%B2=1
     def ellipse_parameters()
       # circle
-      if @curve.xaxis.length == @curve.yaxis.length
-        @vx = @curve.xaxis
-        @vy = @curve.yaxis
-        @rx = @ry = @curve.radius
+      if @crv.xaxis.length == @crv.yaxis.length
+        @vx = @crv.xaxis
+        @vy = @crv.yaxis
+        @rx = @ry = @crv.radius
       else
-        f1 = @curve.xaxis
-        f2 = @curve.yaxis
+        f1 = @crv.xaxis
+        f2 = @crv.yaxis
         val = ((f1 % f2) * 2) / ((f1 % f1) - (f2 % f2))  
-        vertex_angle1 = Math::atan(val) / 2
-        vertex_angle2 = vertex_angle1 + Math::PI/2
-        @vx = ellipAtAngle(vertex_angle1)
-        @vy = ellipAtAngle(vertex_angle2)
+        @vertex_angle1 = Math::atan(val) / 2
+        @vertex_angle2 = @vertex_angle1 + Math::PI/2
+        @vx = ellipAtAngle(@vertex_angle1)
+        @vy = ellipAtAngle(@vertex_angle2)
         @rx = @vx.length
         @ry = @vy.length
       end
-      @center = @curve.center.transform(@xform)
-      # Angle of x vertex vector, converted from radians
-      @xrotdeg = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0]).radians
+      @center = @crv.center.transform(@xform)
+      # Angle of x vertex vector
+      @xrot = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0])
+      @xrotdeg = @xrot.radians # converted from radians
+
+      # Transform doesn't preserve angles...  but it does preserve angle ratios?
+      @midxy = nil
+      
+      if (@crv.end_angle - @crv.start_angle) > Math::PI
+        midangle = (@crv.end_angle + @crv.start_angle)/2.0
+        @midxy = (ellipAtAngle(midangle,absolute:true)).to_a[0,2]
+      end
     end
     
-    def ellipAtAngle(ang)
+    def ellipAtAngle(ang, absolute: false)
+      # Return point on ellipse at angle, relative to center.  If absolute, add center
       cosa = Math::cos(ang)
       sina = Math::sin(ang)
-      Geom::Vector3d.new( [0,1,2].map { |i|  @curve.xaxis[i]*cosa + @curve.yaxis[i]*sina } )
+      p = Geom::Vector3d.new( [0,1,2].map { |i|  @crv.xaxis[i]*cosa + @crv.yaxis[i]*sina } )
+      if absolute
+        p = p + Geom::Vector3d.new( @center.to_a )
+      end
+      p
     end
 
     def svgdata(prev)
-      # angle > PI, draw arc up to PI, then PI to end angle
-      centerxy = [@curve.center[0],@curve.center[1]]
-      r = @curve.radius.round(3)
       # large arc is always false, always draw two arcs if > PI
       largeArc= '0'
-      midpoint = self.PI_xy # may be nil nil, if only one arc
-      endpoint = self.endxy
 
       if prev.nil?
-        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(self.startxy)]
+        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(@startxy)]
       end
-      puts "Arc to %s" % [ShaperSVG::SVG.pos_s(endpoint)]
+      if not @midxy.nil?
+        puts "Arc to mid %s" % [ShaperSVG::SVG.pos_s(@midxy)]
+        puts 'Large arc, center %s vx %s vy %s Orig start,end angle %s,%s' % [
+               @center, @vx, @vy, @crv.start_angle.radians, @crv.end_angle.radians ]
+      end
+      puts "Arc to %s" % [ShaperSVG::SVG.pos_s(@endxy)]
       
-      ( (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + 
-        ( midpoint.nil? ? '' : 
+      ( (prev.nil? ? "M #{FMT} #{FMT}" % @startxy : '') + 
+        ( @midxy.nil? ? '' : 
             (" A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-             [@rx, @ry, @xrotdeg, largeArc, self.sweep(), midpoint[0], midpoint[1]] )) +
+             [@rx, @ry, @xrotdeg, largeArc, self.sweep(), @midxy[0], @midxy[1]] )) +
         " A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-          [@rx, @ry, @xrotdeg, largeArc, self.sweep(), endpoint[0], endpoint[1]] )
+          [@rx, @ry, @xrotdeg, largeArc, self.sweep(), @endxy[0], @endxy[1]] )
     end
   end
         
@@ -118,12 +121,12 @@ module SVG
     def svgdata(prev)
 
       if prev.nil?
-        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(self.startxy)]
+        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(@startxy)]
       end
-      puts "Line to %s" % [ShaperSVG::SVG.pos_s(self.endxy)]
+      puts "Line to %s" % [ShaperSVG::SVG.pos_s(@endxy)]
       
-      (prev.nil? ? "M #{FMT} #{FMT}" % self.startxy : '') + (
-        " L #{FMT} #{FMT}" % self.endxy)
+      (prev.nil? ? "M #{FMT} #{FMT}" % @startxy : '') + (
+        " L #{FMT} #{FMT}" % @endxy)
     end
   end
 
