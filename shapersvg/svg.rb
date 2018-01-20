@@ -1,13 +1,25 @@
 # Simple Node object to construct SVG XML output (no built in support for XML in ruby)
 
 FMT = '%0.3f'
-      
+def V2d(*args); args = args[0].to_a if args.size == 1; V_.new(args[0,2]); end
+
+class V_ < Array
+  # A simple vector supporting scalar multiply and vector add, % dot product, magnitude
+  def initialize(elts); self.concat(elts); end
+  def *(scalar); V_.new(self.map { |c| c*scalar }); end
+  def +(v2); V_.new(self.zip(v2).map { |c,v| c+v }); end
+  def -(v2); V_.new(self.zip(v2).map { |c,v| c-v }); end
+  def %(v2); self.zip(v2).map { |c,v| c*v }.reduce ( :+ ); end
+  def abs(); (self.map { |c| c*c }.reduce(:+))**0.5; end
+  def inspect(); "(" + self.map { |c| "%0.2f"%c }.join(',') + ")"; end
+  def to_s; inspect; end
+  def x; self[0]; end
+  def y; self[1]; end
+end
+
 module ShaperSVG
 module SVG
     
-  # format a position with more brevity
-  def self.pos_s(xy); "(%s,%s)" % xy.to_a.map { |m| m.round(2) }; end
-
   # Sketchup is a mess - it draws curves and keeps information about them
   #  but treats everything as edges
   # Create class to aggregate ArcCurve with its associated Edges
@@ -16,14 +28,16 @@ module SVG
     # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
     # with accurate arc information    
     def initialize(xform, arcglob)
-      @xform = xform
-      @crv = arcglob.crv
-      # Ensure the edges are ordered as a path
       @glob = arcglob
-      self.ellipse_parameters()
+      @crv = @glob.crv
+      # Ensure the edges are ordered as a path
 
-      @startxy = @glob.startpos.transform(@xform).to_a[0,2]
-      @endxy = @glob.endpos.transform(@xform).to_a[0,2]
+      @centerxy = V2d(@crv.center.transform(xform))
+      @startxy = V2d(@glob.startpos.transform(xform))
+      @endxy = V2d(@glob.endpos.transform(xform))
+
+      self.ellipse_parameters()
+      puts "Defining ArcObject start, end, center '%s' '%s' '%s'" % [@startxy, @endxy, @centerxy]
     end
 
     def startxy(); @startxy; end
@@ -32,98 +46,99 @@ module SVG
 
     # https://gamedev.stackexchange.com/questions/45412/
     #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
-    def sweep()
-      # Calculate the sweep from the orientation of the endpoints start -> finish,
-      #   and the center, ref below may be relevant.  Maybe dot product  of normal and start->end
-      # https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
-      '0'
+    def sweep(xy0, xy1)
+      # Calculate the sweep, same as finding if (start->center)
+      # is clockwise rotation from (start->end)
+      start_to_end = (xy1 - xy0)
+      start_to_end_ccw_normal = V2d(start_to_end.y, -start_to_end.x)
+      start_to_center = (@centerxy - xy0)
+      (start_to_end_ccw_normal % start_to_center > 0) ? '0' : '1'
     end
 
-    # curve has curve.center, curve.radius, curve.xaxis, curve.yaxis, curve.start_angle, curve.end_angle
-    # Note, by this point all paths should be transformed to z=0.  But all the vectors below are still in 3D
-    # From https://en.wikipedia.org/wiki/Ellipse#Ellipse_as_an_affine_image_of_the_unit_circle_x%C2%B2+y%C2%B2=1
+    # curve has curve.center, .radius, .xaxis, .yaxis,
+    # .start_angle, .end_angle, see Sketchup API
+    # Note, now all paths are transformed to z=0. So start using 2d
+    # https://en.wikipedia.org/wiki/Ellipse  See Ellipse as an affine image,
+    # specifically cot(2t) = ((f1 * f1) - (f2 * f2)) / 2( f1 * f2 )
+    # cot is just 1/tan, so...
     def ellipse_parameters()
       # circle
       if @crv.xaxis.length == @crv.yaxis.length
-        @vx = @crv.xaxis
-        @vy = @crv.yaxis
+        @vx = V2d(@crv.xaxis)
+        @vy = V2d(@crv.yaxis)
         @rx = @ry = @crv.radius
       else
-        f1 = @crv.xaxis
-        f2 = @crv.yaxis
-        val = ((f1 % f2) * 2) / ((f1 % f1) - (f2 % f2))  
-        @vertex_angle1 = Math::atan(val) / 2
-        @vertex_angle2 = @vertex_angle1 + Math::PI/2
-        @vx = ellipAtAngle(@vertex_angle1)
-        @vy = ellipAtAngle(@vertex_angle2)
-        @rx = @vx.length
-        @ry = @vy.length
+        f1 = V2d(@crv.xaxis)
+        f2 = V2d(@crv.yaxis)
+        vertex_angle1 = 0.5 * Math::atan( ((f1 % f2) * 2) / ((f1 % f1) - (f2 % f2)) )
+        # Get the two vertices "x" and "y"
+        @vx = ellipseXY_at_angle(vertex_angle1)
+        @vy = ellipseXY_at_angle(vertex_angle1 + Math::PI/2)
+        # ellipse radii are magnitude of x,y vertex vectors
+        @rx = @vx.abs
+        @ry = @vy.abs  
       end
-      @center = @crv.center.transform(@xform)
-      # Angle of x vertex vector
-      @xrot = (@vx[0] == 0) ? 90 : Math::atan(@vx[1] / @vx[0])
+      # Angle of "x" vertex vector
+      @xrot = (@vx.x == 0) ? 90 : Math::atan(@vx.y / @vx.x)
       @xrotdeg = @xrot.radians # converted from radians
 
-      # Transform doesn't preserve angles...  but it does preserve angle ratios?
       @midxy = nil
-      
       if (@crv.end_angle - @crv.start_angle) > Math::PI
         midangle = (@crv.end_angle + @crv.start_angle)/2.0
-        @midxy = (ellipAtAngle(midangle,absolute:true)).to_a[0,2]
+        @midxy = ellipseXY_at_angle(midangle,absolute:true)
       end
     end
     
-    def ellipAtAngle(ang, absolute: false)
+    def ellipseXY_at_angle(ang, absolute: false)
       # Return point on ellipse at angle, relative to center.  If absolute, add center
-      cosa = Math::cos(ang)
-      sina = Math::sin(ang)
-      p = Geom::Vector3d.new( [0,1,2].map { |i|  @crv.xaxis[i]*cosa + @crv.yaxis[i]*sina } )
-      if absolute
-        p = p + Geom::Vector3d.new( @center.to_a )
-      end
+      p = V2d(@crv.xaxis)*Math::cos(ang) + V2d(@crv.yaxis)*Math::sin(ang)
+      p = p + @centerxy if absolute
       p
     end
 
+    # Always set largeArc to 0, draw as two arcs is > PI.
+    # This works for degenerate case where start==end
+    SVG_ARC_FORMAT = " A #{FMT} #{FMT} #{FMT} 0 %s #{FMT} #{FMT}"
     def svgdata(prev)
-      # large arc is always false, always draw two arcs if > PI
-      largeArc= '0'
-
+      sweepFlag = sweep(@startxy, @midxy ? @midxy : @endxy)
       if prev.nil?
-        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(@startxy)]
+        puts "\n\nMove to %s" % [@startxy]
       end
       if not @midxy.nil?
-        puts "Arc to mid %s" % [ShaperSVG::SVG.pos_s(@midxy)]
+        puts "Arc to mid %s" % [@midxy]
         puts 'Large arc, center %s vx %s vy %s Orig start,end angle %s,%s' % [
-               @center, @vx, @vy, @crv.start_angle.radians, @crv.end_angle.radians ]
+               @centerxy, @vx, @vy, @crv.start_angle.radians, @crv.end_angle.radians ]
       end
-      puts "Arc to %s" % [ShaperSVG::SVG.pos_s(@endxy)]
-      
+      puts "Arc to %s" % [@endxy]
+
+      # If first path (prev is nil) output "move", rest just output (possibly 2) arc
       ( (prev.nil? ? "M #{FMT} #{FMT}" % @startxy : '') + 
-        ( @midxy.nil? ? '' : 
-            (" A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-             [@rx, @ry, @xrotdeg, largeArc, self.sweep(), @midxy[0], @midxy[1]] )) +
-        " A #{FMT} #{FMT} #{FMT} %s %s #{FMT} #{FMT}" % 
-          [@rx, @ry, @xrotdeg, largeArc, self.sweep(), @endxy[0], @endxy[1]] )
+        ( @midxy.nil? ? '' :
+            ( SVG_ARC_FORMAT % [
+                @rx, @ry, @xrotdeg, sweepFlag, @midxy.x, @midxy.y])) +
+        SVG_ARC_FORMAT % [
+          @rx, @ry, @xrotdeg, sweepFlag, @endxy.x, @endxy.y]
+      )
     end
   end
         
   class EdgeObject
     # Edge is a single line segment with a start and end x,y
     def initialize(xform, edgeglob)
-      @xform = xform
       @glob = edgeglob
-      @startxy = @glob.startpos.transform(@xform).to_a[0,2]
-      @endxy = @glob.endpos.transform(@xform).to_a[0,2]      
+      @startxy = V2d(@glob.startpos.transform(xform))
+      @endxy = V2d(@glob.endpos.transform(xform))     
     end
     def startxy(); @startxy; end
     def endxy(); @endxy; end
 
     def svgdata(prev)
 
+      # If first path (prev is nil) output "move", rest just line draw
       if prev.nil?
-        puts "\n\nMove to %s" % [ShaperSVG::SVG.pos_s(@startxy)]
+        puts "\n\nMove to %s" % [@startxy]
       end
-      puts "Line to %s" % [ShaperSVG::SVG.pos_s(@endxy)]
+      puts "Line to %s" % [@endxy]
       
       (prev.nil? ? "M #{FMT} #{FMT}" % @startxy : '') + (
         " L #{FMT} #{FMT}" % @endxy)
@@ -248,7 +263,7 @@ module SVG
         }, outer)
     end   
     
-    def initialize(pathparts, outer:false)
+    def initialize(pathparts, outer: false)
       # pathparts: array of ArcObjects and EdgeObjects
       @pathparts = pathparts
       if outer

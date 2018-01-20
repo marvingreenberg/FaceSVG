@@ -80,8 +80,8 @@ class ArcGlob < Array
   end
   #  Hold the edges that make up an arc as edge array
 
-  def to_s; 'Arc %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
-  def inspect; to_s; end
+  def inspect; 'Arc %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
+  def to_s; inspect; end
   def crv(); self[0].curve; end
   def startpos()
     @reverse ? crv.last_edge.end.position : crv.first_edge.start.position
@@ -104,8 +104,8 @@ class EdgeGlob < Array
     self.concat(elements)
     @reverse = false
   end
-  def to_s; 'Edge %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
-  def inspect; to_s; end
+  def inspect; 'Edge %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
+  def to_s; inspect; end
   def startpos()
     @reverse ? self[0].end.position : self[0].start.position
   end
@@ -284,7 +284,7 @@ class Transformer
   end
 
   def process_selection()
-    @selected_model_faces.each do |elt|
+    @selected_model_faces.select(&:valid?) .each do |elt|
       # Test for group is dead code from earllier iterations...
       if elt.is_a?(Sketchup::Group)
         # Recurse down into groups to find faces in selected groups
@@ -319,7 +319,7 @@ class Transformer
         # For any inner loops, don't recalculate the extents
         face.loops.each do |loop|
           if not loop.equal?(face.outer_loop)
-            glob_arr = self.transform(loop.edges)
+            glob_arr = self.transform(loop.edges, outer: false)
             @loops << ShaperSVG::SVG::Loop.create(
               @facegrp.transformation, glob_arr, outer: false)          
           end
