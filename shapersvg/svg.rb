@@ -62,8 +62,8 @@ module ShaperSVG
       # specifically cot(2t) = ((f1 * f1) - (f2 * f2)) / 2( f1 * f2 )
       # cot is just 1/tan, so...
       def ellipse_parameters()
-        # circle
-        if @crv.xaxis.length == @crv.yaxis.length
+        # circle, axes are orthogonal
+        if 0 == @crv.xaxis % @crv.yaxis
           @vx = V2d(@crv.xaxis)
           @vy = V2d(@crv.yaxis)
           @rx = @ry = @crv.radius
