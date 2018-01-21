@@ -118,7 +118,7 @@ module ShaperSVG
           _sm.add_item('Reset SVG profile') { shapersvg_reset }
           _sm.add_item('Write SVG profile') { shapersvg_write }
           _sm.add_item('Layout SVG profile') { shapersvg_2d_layout }
-          if selset.size > 1
+          if selset.size > 0
             _sm.add_item('Mark/unmark face(s)') { shapersvg_toggle_mark_face(selset) }
           end
         end # context_menu_handler
