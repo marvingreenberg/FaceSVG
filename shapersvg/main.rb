@@ -76,7 +76,7 @@ module ShaperSVG
       
     def shapersvg_reset
       # Delete the cut path layout
-      profile().clear
+      profile().reset()
     rescue => exception
       _handle(exception)
       raise

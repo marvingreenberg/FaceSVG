@@ -167,6 +167,10 @@ module ShaperSVG
         end
       end
 
+      def id()
+        @facegrp.guid()
+      end
+      
       def transform(edges, outer: false)
         curves = [] # curves that have been processed (may edges in same curve)
         # Another group - path grp in @facegrp
@@ -233,8 +237,8 @@ module ShaperSVG
       
       ################
       def reset()
-        super.clear()
         if @profilegrp and @profilegrp.valid?
+          puts 'Remove %s' % @profilegrp
           Sketchup::active_model.entities.remove_entities [ @profilegrp ]
         end
         @facemap = {}
@@ -255,7 +259,7 @@ module ShaperSVG
           @profilelayer = Sketchup::active_model.layers.add('SVG Profile')
           @su_profilegrp.layer = @profilelayer
         end
-        @profilegrp
+        @su_profilegrp
       end
       
       ################
