@@ -20,8 +20,7 @@ load 'shapersvg/layout.rb'
 # Sketchup.register_extension extensionSVG, true
 
 # Sketchup API is a litle strange - many operations create edges, but actually maintain a higher resolution 
-#   circular or elliptical arc.  Still need to figure out various transforms, applied to shapes
-# https://stackoverflow.com/questions/11503558/how-to-undefine-class-in-ruby
+#   circular or elliptical arc.  
 
 # TTD
 # More settings material size 2x4 4x4, bit size 1/8, 1/4
@@ -44,12 +43,12 @@ module ShaperSVG
     extend self # Ruby is weird.  Make Main module act like a singleton class
     
     @@menus_set ||= false
-    @@xformer = Hash.new { |h,k| h[k] = ShaperSVG::Layout::Transformer.new(k) } 
+    @@profilemap = Hash.new { |h,k| h[k] = ShaperSVG::Layout::ProfileGroup.new(k) } 
     
     # On Mac, can have multiple open models, keep separate tranfrom instance for each model
-    def transformer()
+    def profile()
       title = Sketchup::active_model.title or 'Untitled'
-      @@xformer[title]
+      @@profilemap[title]
     end
       
     def _handle(exception)
@@ -60,9 +59,8 @@ module ShaperSVG
     def default_dir(); @@default_dir; end
     def default_dir=(d); @@default_dir = d; end
     
-    
     def shapersvg_2d_layout
-      transformer().process_selection()
+      profile().process_selection()
     rescue => exception
       _handle(exception)
       raise
@@ -70,7 +68,7 @@ module ShaperSVG
 
     def shapersvg_write
       # Write the SVG file
-      transformer().write()
+      profile().write()
     rescue => exception
       _handle(exception)
       raise
@@ -78,16 +76,12 @@ module ShaperSVG
       
     def shapersvg_reset
       # Delete the cut path layout
-      transformer().reset
+      profile().clear
     rescue => exception
       _handle(exception)
       raise
     end
 
-    def shapersvg_toggle_mark_face(sel)
-      transformer().toggle_mark_face(sel)
-    end
-    
     # def shapersvg_settings
     #   # No real useful settings yet
     #   inputs = UI.inputbox(
@@ -114,12 +108,11 @@ module ShaperSVG
         
         UI.add_context_menu_handler do |context_menu|
           selset = Sketchup::active_model.selection
-          _sm = context_menu.add_submenu('Shaper')
-          _sm.add_item('Reset SVG profile') { shapersvg_reset }
-          _sm.add_item('Write SVG profile') { shapersvg_write }
+          _sm = context_menu.add_submenu('Shaper')          
+          _sm.add_item('Reset layout') { shapersvg_reset }
           _sm.add_item('Layout SVG profile') { shapersvg_2d_layout }
-          if selset.size > 0
-            _sm.add_item('Mark/unmark face(s)') { shapersvg_toggle_mark_face(selset) }
+          if profile().size > 0
+            _sm.add_item('Write SVG profile') { shapersvg_write }
           end
         end # context_menu_handler
 
