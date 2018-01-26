@@ -43,7 +43,8 @@ module ShaperSVG
     extend self # Ruby is weird.  Make Main module act like a singleton class
     
     @@menus_set ||= false
-    @@profilemap = Hash.new { |h,k| h[k] = ShaperSVG::Layout::ProfileGroup.new(k) } 
+    @@profilemap = Hash.new {
+      |h,k| h[k] = ShaperSVG::Layout::ProfileCollection.new(k) } 
     
     # On Mac, can have multiple open models, keep separate tranfrom instance for each model
     def profile()

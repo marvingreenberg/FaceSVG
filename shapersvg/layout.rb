@@ -21,6 +21,9 @@ INCHES = 'in'
 CM = 'cm'
 MM = 'mm'
 
+# i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
+# unit = ['in','ft','mm','cm','m'][i]
+
 module ShaperSVG
   module Layout
 
@@ -41,8 +44,9 @@ module ShaperSVG
       (pos1-pos2).length < TOLERANCE
     end
     
-    # The ordering of edges in sketchup face boundaries seems arbitrary, make predictable
-    # Start at arbitray element, order edges/arcs with endpoints like (e0,e1),(e1,e2),(e2,e3)...(eN,e0)xs
+    # The ordering of edges in sketchup face boundaries seems
+    # arbitrary, make predictable Start at arbitrary element, order
+    # edges/arcs with endpoints like (e0,e1),(e1,e2),(e2,e3)...(eN,e0)
     def self.reorder(globs)
       globs = globs.clone
 
@@ -132,49 +136,59 @@ module ShaperSVG
     # entities.add_observer, remove_observer
     ########################################################################
     class FaceProfile
-      def initialize(profilegrp, face)
-        # Set the transfrom matrix for all the loops (outer and inside cutouts) on face
-        # Transforms onto z=0 plane
-        @profilegrp = profilegrp
-        @face = face
-        @xform = Geom::Transformation.new(@face.bounds.min, @face.normal).inverse
-        @facegrp = @profilegrp.su_profilegrp.entities.add_group()
+      def initialize(profilecollection, su_face)
+        # Set the transform matrix for all the loops (outer and inside cutouts) on face
+        # Transforms the face edge loops onto z=0 plane, to origin (maybe not +xy though?)
+        @profilecollection = profilecollection
+        @su_face = su_face
+        @xform = Geom::Transformation.new(@su_face.bounds.min, @su_face.normal).inverse
+        @su_facegrp = @profilecollection.su_profilegrp.entities.add_group()
         @paths = []
 
         # Keep bounds of transformed face outer profile
         @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100,-1e100]
         # Use the outer loop to get the bounds
         # Return array of edge arrays.  If edge array size>1 it is an arc
-        glob_arr = self.transform(@face.outer_loop.edges, outer: true)
+        glob_arr = self.transform(@su_face.outer_loop.edges, outer: true)
         @paths << glob_arr
         
         puts "Outer %s\n" % [glob_arr]
         # After outerloop is calculated, can layout the whole facegrp
-        @profilegrp.layout_facegrp(@facegrp, @minx, @miny, @maxx, @maxy)
+        @profilecollection.layout_facegrp(self, @minx, @miny, @maxx, @maxy)
         
-        @profilegrp.add_loop(
-          ShaperSVG::SVG::Loop.create(@xform, glob_arr, outer: true))
-
         # For any inner loops, don't recalculate the extents
-        face.loops.each do |loop|
-          if not loop.equal?(face.outer_loop)
+        @su_face.loops.each do |loop|
+          if not loop.equal?(@su_face.outer_loop)
             glob_arr = self.transform(loop.edges, outer: false)
             puts "Inner %s\n" % [glob_arr]
-            @paths << glob_arr
-            @profilegrp.add_loop(
-              ShaperSVG::SVG::Loop.create(@xform, glob_arr, outer: false))
+            @paths << glob_arr            
           end
         end
       end
 
+      def createloops()
+        @paths.each_with_index.map { |glob_arr,i|
+          # First glob arr is the outer profile
+          ShaperSVG::SVG::Loop.create(@layout_xf, @minx, @miny, glob_arr, outer: i == 0)
+         }
+      end
+
+      def su_facegrp()
+        @su_facegrp
+      end
+      
       def id()
-        @facegrp.guid()
+        @su_facegrp.guid()
+      end
+
+      def layout_xf=(xf)
+        @layout_xf = xf
       end
       
       def transform(edges, outer: false)
         curves = [] # curves that have been processed (may edges in same curve)
-        # Another group - path grp in @facegrp
-        pathgrp = @facegrp.entities.add_group()
+        # Create yet another group, for each path on the face
+        pathgrp = @su_facegrp.entities.add_group()
         # Duplicate the face edges. map returns single edges as [edge] and arcs as [edge,edge,...]
         #  plus nils for subsequent arc edges - this all to maintain the arc metadata
         dupedges = edges.map { |edge| 
@@ -184,8 +198,8 @@ module ShaperSVG
             # Subsequent arc edges ignored, returning nil
             if not curves.member?(ell_orig)
               curves << ell_orig
-              # Take unit circle, apply ellxform to duplicate arc...
-              # start, end angle invariant
+              # Take unit circle, apply ellxform to make duplicate arc...
+              # start and end angle are invariant
               elledges = pathgrp.entities.add_arc(
                 ORIGIN, X_AXIS, Z_AXIS, 1.0, ell_orig.start_angle, ell_orig.end_angle)
               ellxform = Geom::Transformation.new(
@@ -221,7 +235,7 @@ module ShaperSVG
       end      
     end
     ########################################################################
-    class ProfileGroup
+    class ProfileCollection
       # Used to transform the points in a face loop, and find the min,max x,y in
       #   the z=0 plane
       def initialize(title)
@@ -237,27 +251,33 @@ module ShaperSVG
       
       ################
       def reset()
-        if @profilegrp and @profilegrp.valid?
-          puts 'Remove %s' % @profilegrp
-          Sketchup::active_model.entities.remove_entities [ @profilegrp ]
+        if @su_profilegrp and @su_profilegrp.valid?
+          puts 'Remove %s' % @su_profilegrp
+          
+          Sketchup::active_model.entities.erase_entities  @su_profilegrp 
         end
+
+        # Use a map to hold the faces, to allow for an observer to update the map
+        #  if groups are manually deleted
         @facemap = {}
-        @profilegrp = nil
-        @loops = []                                 # Array of loops
-        @xform = nil # Unused, moved to FaceProfile
-        @grps = [] # UNUSED
+        @su_profilegrp = nil                      # grp to hold all the SU face groups
 
         # Information to manage the layout
         @layoutx, @layouty, @rowheight = [0.0, 0.0, 0.0]
-        @viewport = [0.0, 0.0, -1e100, -1e100] # maxx, maxy of viewport updated in layout_facegrp
+        @viewport = [0.0, 0.0, -1e100, -1e100]   # maxx, maxy of viewport updated in layout_facegrp
       end
+
+      # Find a named group  Also active_entities, only entities in open group,etc.
+      # model.entities.grep(Sketchup::Group).find_all{|g| g.name==gpname }
+      # uses fact that entities is array-like, maybe
       ################
       def su_profilegrp()
         # Return the Sketchup profile group contained in the ProfileGroup instance
-        if (not @profilegrp) or not @profilegrp.valid?
+        if (not @su_profilegrp) or not @su_profilegrp.valid?
           @su_profilegrp = Sketchup::active_model.entities.add_group()
-          @profilelayer = Sketchup::active_model.layers.add('SVG Profile')
-          @su_profilegrp.layer = @profilelayer
+          @su_profilelayer = Sketchup::active_model.layers.add('SVG Profile')
+          @su_profilegrp.layer = @su_profilelayer
+          @su_profilegrp.name = 'SVG Profile Group'
         end
         @su_profilegrp
       end
@@ -266,23 +286,23 @@ module ShaperSVG
       def add_face_profile(id, fp)
         @facemap[id] = fp
       end
-      
-      ################
-      def add_loop(l)
-        # temporary
-        @loops << l
-      end
-      
+            
       ################
       def write()
-        filepath = UI.savepanel("SVG output file", ShaperSVG::Main::default_dir, "%s.svg"%@title)
+        filepath = UI.savepanel(
+          "SVG output file", ShaperSVG::Main::default_dir, "%s.svg"%@title)
         if filepath
+          ShaperSVG::Main.default_dir = File::dirname(filepath)
+          svg = ShaperSVG::SVG::Canvas.new(@viewport, INCHES, ShaperSVG::ADDIN_VERSION)
+          svg.title("%s cut profile" % @title)                 
+          svg.desc('Shaper cut profile from Sketchup model %s' % @title)
+          
+          @facemap.values.each do |faceprofile|
+            faceprofile.createloops().each do |loop|
+              svg.path( loop.svgdata, loop.attributes )
+            end
+          end
           File.open(filepath,'w') do |file|
-            ShaperSVG::Main.default_dir = File::dirname(filepath)
-            svg = ShaperSVG::SVG::Canvas.new(@viewport, INCHES, ShaperSVG::ADDIN_VERSION)
-            svg.title("%s cut profile" % @title)                 
-            svg.desc('Shaper cut profile from Sketchup model %s' % @title)
-            @loops.each { |loop| svg.path(loop.svgdata, loop.attributes) }
             svg.write(file)
           end
         end
@@ -293,12 +313,14 @@ module ShaperSVG
       #    |e| e.set_attribute(SHAPER, PROFILEKIND, outer ? PK_OUTER : PK_INNER)
       # }
 
-      def layout_facegrp(facegrp, minx, miny, maxx, maxy)
+      def layout_facegrp(faceprofile, minx, miny, maxx, maxy)
         # After the bounds of the outer loop are calculated, transform face layout
-        # by moving the group containing the paths (inner and outer) 
-        xf = Geom::Transformation.new( [ @layoutx - minx, @layouty - miny, 0.0] )
-        @su_profilegrp.entities.transform_entities(xf, facegrp)
-
+        # by moving the group containing the paths (inner and outer)
+        facegrp = faceprofile.su_facegrp
+        layout_xf = Geom::Transformation.new( [ @layoutx - minx, @layouty - miny, 0.0] )
+        @su_profilegrp.entities.transform_entities(layout_xf, facegrp)
+        faceprofile.layout_xf = layout_xf
+        
         @layoutx += SPACING + maxx - minx
         @viewport[2] = [@viewport[2],@layoutx].max
         # As each element is layed out horizontally, keep track of the tallest bit
@@ -312,6 +334,8 @@ module ShaperSVG
         @viewport[3] = [@viewport[3],@layouty+@rowheight].max
         @viewport[2] = [@viewport[2],@layoutx].max
 
+        puts "Layout SU Facegrp #{facegrp} #{minx} #{miny} #{maxx} #{maxy} NEW Layout x,y #{@layoutx},#{@layouty}"
+
       end
 
       def process_selection()
@@ -320,8 +344,8 @@ module ShaperSVG
           if elt.is_a?(Sketchup::Face)
             face = elt
             puts "processing #{face}"
-            # Create FaceProfile to hold face profile edges,  References
-            # container ProfileGroup for layout calculations, and sketchup group
+            # Create FaceProfile to hold face profile edges,  holds reference to
+            # its containing ProfileCollection
             f = FaceProfile.new(self, face)
             add_face_profile(f.id, f)
           end

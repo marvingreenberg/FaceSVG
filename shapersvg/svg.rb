@@ -256,7 +256,7 @@ module ShaperSVG
     class Loop
       # class Loop factory method.  See "Globs" in layout.rb, basically
       # to aggregate edges with arc metadata, and deal with ordering
-      def self.create(xform, glob_arr, outer)
+      def self.create(xform, xmin, ymin, glob_arr, outer)
         Loop.new( 
           glob_arr.map { |glob|
             glob.isArc() ? ArcObject.new(xform, glob) : EdgeObject.new(xform, glob)
@@ -282,6 +282,5 @@ module ShaperSVG
         (@pathparts.map { |p| d = p.svgdata(prev);  prev = p; d }).join(' ') + " Z"
       end
     end
-
   end
 end
