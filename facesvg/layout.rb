@@ -6,15 +6,7 @@ require 'extensions'
 require 'LangHandler'
 
 # Provides SVG module with SVG::Canvas class
-load 'shapersvg/svg.rb'
-
-# $uStrings = LanguageHandler.new("shaperSVG")
-# extensionSVG = SketchupExtension.new $uStrings.GetString("shaperSVG"), "shapersvg/shapersvg.rb"
-# extensionSVG.description=$uStrings.GetString("Create SVG files from faces")
-# Sketchup.register_extension extensionSVG, true
-
-# Sketchup API is a litle strange - many operations create edges, but actually maintain a higher resolution 
-#   circular or elliptical arc.  Still need to figure out various transforms, applied to shapes
+load 'facesvg/svg.rb'
 
 # SVG units are: in, cm, mm
 INCHES = 'in'
@@ -24,13 +16,14 @@ MM = 'mm'
 # i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
 # unit = ['in','ft','mm','cm','m'][i]
 
-module ShaperSVG
+module FaceSVG
   module Layout
 
     SHAPER = 'shaper'
     PROFILEKIND = 'profilekind'
     PK_INNER = 'inner'
     PK_OUTER = 'outer'
+    PK_POCKET = 'pocket' # TTD
     PK_GUIDE = 'guide'
 
     # format a position with more brevity
@@ -56,19 +49,20 @@ module ShaperSVG
       while globs.size > 0
         prev_elt = ordered[-1]
         globs.each_with_index do |g,i|
-          if ShaperSVG::Layout.samepos(prev_elt.endpos, g.startpos)
+          if FaceSVG::Layout.samepos(prev_elt.endpos, g.startpos)
             # found next edge, normal end -> start
             ordered << g
             globs.delete_at(i)
             break
-          elsif ShaperSVG::Layout.samepos(prev_elt.endpos, g.endpos)
+          elsif FaceSVG::Layout.samepos(prev_elt.endpos, g.endpos)
             # reversed edge, end -> end
             ordered << g.reverse
             globs.delete_at(i)
             break
           end
           if i == (globs.size - 1) # at end
-            raise "Unexpected: No edge/arc connected %s to at %s" % [prev_elt, ShaperSVG::Layout.pos_s(prev_elt.endpos)]
+            raise ("Unexpected: No edge/arc connected %s to at %s" %
+                   [prev_elt, FaceSVG::Layout.pos_s(prev_elt.endpos)])
           end
         end
       end
@@ -76,8 +70,8 @@ module ShaperSVG
     end
 
     ########################################################################
-    # These "globs" collect the edges for an arc with metadata and control to reverse orientation
-    # An edge glob is just a single edge.
+    # These "globs" collect the edges for an arc with metadata and
+    # control to reverse orientation. An edge glob is just a single edge.
     class ArcGlob < Array
       def initialize(elements)
         super()
@@ -85,7 +79,10 @@ module ShaperSVG
       end
       #  Hold the edges that make up an arc as edge array
 
-      def inspect; 'Arc %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
+      def inspect
+        ('Arc %s->%s%s' %
+         [FaceSVG::Layout.pos_s(startpos), FaceSVG::Layout.pos_s(endpos), @reverse ? 'R' : ''])
+      end
       def to_s; inspect; end
       def crv(); self[0].curve; end
       def startpos()
@@ -110,7 +107,10 @@ module ShaperSVG
         self.concat(elements)
         @reverse = false
       end
-      def inspect; 'Edge %s->%s%s' % [ShaperSVG::Layout.pos_s(startpos), ShaperSVG::Layout.pos_s(endpos), @reverse ? 'R' : '']; end
+      def inspect
+        ('Edge %s->%s%s' %
+         [FaceSVG::Layout.pos_s(startpos), FaceSVG::Layout.pos_s(endpos), @reverse ? 'R' : ''])
+      end
       def to_s; inspect; end
       def startpos()
         @reverse ? self[0].end.position : self[0].start.position
@@ -169,7 +169,7 @@ module ShaperSVG
       def createloops()
         @paths.each_with_index.map { |glob_arr,i|
           # First glob arr is the outer profile
-          ShaperSVG::SVG::Loop.create(@layout_xf, @minx, @miny, glob_arr, outer: i == 0)
+          FaceSVG::SVG::Loop.create(@layout_xf, @minx, @miny, glob_arr, outer: i == 0)
          }
       end
 
@@ -231,7 +231,7 @@ module ShaperSVG
             @maxy = [y, @maxy].max
           }
         end
-        ShaperSVG::Layout.reorder(dupedges)
+        FaceSVG::Layout.reorder(dupedges)
       end      
     end
     ########################################################################
@@ -260,7 +260,7 @@ module ShaperSVG
         # Use a map to hold the faces, to allow for an observer to update the map
         #  if groups are manually deleted
         @facemap = {}
-        @su_profilegrp = nil                      # grp to hold all the SU face groups
+        @su_profilegrp = nil      # grp to hold all the SU face groups
 
         # Information to manage the layout
         @layoutx, @layouty, @rowheight = [0.0, 0.0, 0.0]
@@ -290,10 +290,10 @@ module ShaperSVG
       ################
       def write()
         filepath = UI.savepanel(
-          "SVG output file", ShaperSVG::Main::default_dir, "%s.svg"%@title)
+          "SVG output file", FaceSVG::default_dir, "%s.svg"%@title)
         if filepath
-          ShaperSVG::Main.default_dir = File::dirname(filepath)
-          svg = ShaperSVG::SVG::Canvas.new(@viewport, INCHES, ShaperSVG::ADDIN_VERSION)
+          FaceSVG::default_dir = File::dirname(filepath)
+          svg = FaceSVG::SVG::Canvas.new(@viewport, INCHES)
           svg.title("%s cut profile" % @title)                 
           svg.desc('Shaper cut profile from Sketchup model %s' % @title)
           
@@ -321,20 +321,18 @@ module ShaperSVG
         @su_profilegrp.entities.transform_entities(layout_xf, facegrp)
         faceprofile.layout_xf = layout_xf
         
-        @layoutx += SPACING + maxx - minx
+        @layoutx += FaceSVG.spacing + maxx - minx
         @viewport[2] = [@viewport[2],@layoutx].max
         # As each element is layed out horizontally, keep track of the tallest bit
         @rowheight = [@rowheight, maxy - miny].max
-        if @layoutx > SHEETWIDTH
-          @layoutx = 0.0 + SPACING
-          @layouty += @rowheight + SPACING
+        if @layoutx > FaceSVG.sheetwidth
+          @layoutx = 0.0 + FaceSVG.spacing
+          @layouty += @rowheight + FaceSVG.spacing
           @rowheight = 0.0
         end
         # Adjust the x, y max for viewport as each face is laid out
         @viewport[3] = [@viewport[3],@layouty+@rowheight].max
         @viewport[2] = [@viewport[2],@layoutx].max
-
-        puts "Layout SU Facegrp #{facegrp} #{minx} #{miny} #{maxx} #{maxy} NEW Layout x,y #{@layoutx},#{@layouty}"
 
       end
 

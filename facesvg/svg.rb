@@ -1,9 +1,9 @@
 # Simple Node object to construct SVG XML output (no built in support for XML in ruby)
 
 
-def V2d(*args); args = args[0].to_a if args.size == 1; ShaperSVG::SVG::V_.new(args[0,2]); end    
+def V2d(*args); args = args[0].to_a if args.size == 1; FaceSVG::SVG::V_.new(args[0,2]); end    
 
-module ShaperSVG
+module FaceSVG
   module SVG
 
     FMT = '%0.3f'
@@ -167,7 +167,7 @@ module ShaperSVG
     #
     # Embody +parameters+ or +options+ in Teletype Text tags.
     class Canvas
-      def initialize(viewport, unit, version)
+      def initialize(viewport, unit)
         @minx, @miny, @maxx, @maxy = viewport
         @width = @maxx - @minx    
         @height = @maxy - @miny
@@ -184,7 +184,7 @@ module ShaperSVG
                                         'xmlns': "http://www.w3.org/2000/svg",
                                         'xmlns:xlink': "http://www.w3.org/1999/xlink",
                                         'xmlns:shaper': "http://www.shapertools.com/namespaces/shaper",
-                                        'shaper:sketchupaddin': version
+                                        'shaper:sketchupaddin': FaceSVG.version
                          })
       end                
 
