@@ -1,29 +1,30 @@
 # Simple Node object to construct SVG XML output (no built in support for XML in ruby)
 
-FMT = '%0.3f'
-def V2d(*args); args = args[0].to_a if args.size == 1; V_.new(args[0,2]); end
 
-class V_ < Array
-  # A simple vector supporting scalar multiply and vector add, % dot product, magnitude
-  def initialize(elts); self.concat(elts); end
-  def *(scalar); V_.new(self.map { |c| c*scalar }); end
-  def +(v2); V_.new(self.zip(v2).map { |c,v| c+v }); end
-  def -(v2); V_.new(self.zip(v2).map { |c,v| c-v }); end
-  def %(v2); self.zip(v2).map { |c,v| c*v }.reduce ( :+ ); end
-  def abs(); (self.map { |c| c*c }.reduce(:+))**0.5; end
-  def inspect(); "(" + self.map { |c| "%0.2f"%c }.join(',') + ")"; end
-  def to_s; inspect; end
-  def x; self[0]; end
-  def y; self[1]; end
-end
+def V2d(*args); args = args[0].to_a if args.size == 1; ShaperSVG::SVG::V_.new(args[0,2]); end    
 
 module ShaperSVG
   module SVG
+
+    FMT = '%0.3f'
+    class V_ < Array
+      # A simple vector supporting scalar multiply and vector add, % dot product, magnitude
+      def initialize(elts); self.concat(elts); end
+      def *(scalar); V_.new(self.map { |c| c*scalar }); end
+      def +(v2); V_.new(self.zip(v2).map { |c,v| c+v }); end
+      def -(v2); V_.new(self.zip(v2).map { |c,v| c-v }); end
+      def %(v2); self.zip(v2).map { |c,v| c*v }.reduce ( :+ ); end
+      def abs(); (self.map { |c| c*c }.reduce(:+))**0.5; end
+      def ==(v2); (self-v2).abs < 0.0005 ; end
+      def inspect(); "(" + self.map { |c| FMT%c }.join(',') + ")"; end
+      def to_s; inspect; end
+      def x; self[0]; end
+      def y; self[1]; end
+    end
     
     # Sketchup is a mess - it draws curves and keeps information about them
     #  but treats everything as edges
     # Create class to aggregate ArcCurve with its associated Edges
-    # For some reason, need to iterate across edges from endxy to startxy,
     class ArcObject
       # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
       # with accurate arc information    
@@ -46,15 +47,24 @@ module ShaperSVG
 
       # https://gamedev.stackexchange.com/questions/45412/
       #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
-      def sweep(xy0, xy1)
-        # Calculate the sweep, same as finding if (start->center)
-        # is clockwise rotation from (start->end)
-        start_to_end = (xy1 - xy0)
-        start_to_end_ccw_normal = V2d(start_to_end.y, -start_to_end.x)
-        start_to_center = (@centerxy - xy0)
-        (start_to_end_ccw_normal % start_to_center > 0) ? '0' : '1'
+      def dot(v0,v1)
+        v0.x*v1.x + v0.y*v1.y
       end
 
+      # cw in svg coordinate space, +y is down
+      def cw_normal(v0)
+        V2d(-v0.y,v0.x)
+      end
+
+      def sweep()
+        # Calculate the sweep to midpoint, < 180 degrees,
+        # same as finding if (center -> start)
+        # is clockwise rotation from (center -> midpoint)
+        c_to_s = (@startxy - @centerxy)
+        c_to_e = (@midxy - @centerxy)
+        (dot(c_to_e, cw_normal(c_to_s)) > 0) ? '1' : '0'
+      end
+      
       # curve has curve.center, .radius, .xaxis, .yaxis,
       # .start_angle, .end_angle, see Sketchup API
       # Note, now all paths are transformed to z=0. So start using 2d
@@ -62,15 +72,16 @@ module ShaperSVG
       # specifically cot(2t) = ((f1 * f1) - (f2 * f2)) / 2( f1 * f2 )
       # cot is just 1/tan, so...
       def ellipse_parameters()
-        # circle, axes are orthogonal
-        if 0 == @crv.xaxis % @crv.yaxis
+        # circle, axes are orthogonal, same length (compared subject to Skecthup "tolerance")
+        if ( (@crv.xaxis % @crv.yaxis) == 0 and
+             (@crv.xaxis.length == @crv.yaxis.length) )
           @vx = V2d(@crv.xaxis)
           @vy = V2d(@crv.yaxis)
           @rx = @ry = @crv.radius
         else
           f1 = V2d(@crv.xaxis)
           f2 = V2d(@crv.yaxis)
-          vertex_angle1 = 0.5 * Math::atan( ((f1 % f2) * 2) / ((f1 % f1) - (f2 % f2)) )
+          vertex_angle1 = 0.5 * Math::atan2( ((f1 % f2) * 2), ((f1 % f1) - (f2 % f2)) )
           # Get the two vertices "x" and "y"
           @vx = ellipseXY_at_angle(vertex_angle1)
           @vy = ellipseXY_at_angle(vertex_angle1 + Math::PI/2)
@@ -83,10 +94,11 @@ module ShaperSVG
         @xrotdeg = @xrot.radians # converted from radians
 
         @midxy = nil
-        if (@crv.end_angle - @crv.start_angle) > Math::PI
-          midangle = (@crv.end_angle + @crv.start_angle)/2.0
-          @midxy = ellipseXY_at_angle(midangle,absolute:true)
-        end
+        midangle = (@crv.end_angle + @crv.start_angle)/2.0
+        @midxy = ellipseXY_at_angle(midangle, absolute:true)
+
+        # Draw large arcs as two arcs, instead of using flag, to handle closed path case
+        @largearc = (@crv.end_angle - @crv.start_angle) > Math::PI
       end
       
       def ellipseXY_at_angle(ang, absolute: false)
@@ -100,25 +112,23 @@ module ShaperSVG
       # This works for degenerate case where start==end
       SVG_ARC_FORMAT = " A #{FMT} #{FMT} #{FMT} 0 %s #{FMT} #{FMT}"
       def svgdata(prev)
-        sweepFlag = sweep(@startxy, @midxy ? @midxy : @endxy)
+        sweepFlag = sweep()
         if prev.nil?
           puts "\n\nMove to %s" % [@startxy]
         end
-        if not @midxy.nil?
+        if @largearc
           puts "Arc to mid %s" % [@midxy]
           puts 'Large arc, center %s vx %s vy %s Orig start,end angle %s,%s' % [
                  @centerxy, @vx, @vy, @crv.start_angle.radians, @crv.end_angle.radians ]
         end
         puts "Arc to %s" % [@endxy]
 
-        # If first path (prev is nil) output "move", rest just output (possibly 2) arc
+        # If first path (prev is nil) output "move",
+        # Then draw arc to end, with arc to midpoint if "largarc"
         ( (prev.nil? ? "M #{FMT} #{FMT}" % @startxy : '') + 
-          ( @midxy.nil? ? '' :
-              ( SVG_ARC_FORMAT % [
-                  @rx, @ry, @xrotdeg, sweepFlag, @midxy.x, @midxy.y])) +
-          SVG_ARC_FORMAT % [
-            @rx, @ry, @xrotdeg, sweepFlag, @endxy.x, @endxy.y]
-        )
+          ( @largearc ? ( SVG_ARC_FORMAT % [
+                            @rx, @ry, @xrotdeg, sweepFlag, @midxy.x, @midxy.y]) : '') +
+          SVG_ARC_FORMAT % [ @rx, @ry, @xrotdeg, sweepFlag, @endxy.x, @endxy.y] )
       end
     end
     
