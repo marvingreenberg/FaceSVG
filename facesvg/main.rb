@@ -12,7 +12,7 @@ rescue
   true
 end
 
-load 'facesvg/layout.rb'
+Sketchup.require('facesvg/layout')
 
 # API is strange - many operations create only approximate edges, but maintain accurate
 #   circular or elliptical arc metadata separately.

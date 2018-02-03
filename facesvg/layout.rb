@@ -6,7 +6,7 @@ require 'extensions'
 require 'LangHandler'
 
 # Provides SVG module with SVG::Canvas class
-load 'facesvg/svg.rb'
+Sketchup.require('facesvg/svg')
 
 # i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
 # unit = ['in','ft','mm','cm','m'][i]
@@ -81,6 +81,7 @@ module FaceSVG
       def initialize(elements)
         super()
         concat(elements)
+        #puts 'Transform path %s' % [self]
       end
       #  Hold the edges that make up an arc as edge array
 
@@ -112,10 +113,6 @@ module FaceSVG
       def isArc
         true
       end
-
-      def endpt
-        self[0].curve.edges[-1].end.position
-      end
     end
 
     ########################################################################
@@ -125,6 +122,7 @@ module FaceSVG
         super()
         concat(elements)
         @reverse = false
+        #puts 'Transform path %s' % [self]
       end
 
       def inspect
@@ -151,10 +149,6 @@ module FaceSVG
 
       def isArc
         false
-      end
-
-      def endpt
-        self[0].end.position
       end
     end
     ########################################################################
@@ -210,38 +204,55 @@ module FaceSVG
       end
 
       attr_writer :layout_xf
+      def dupcrv(curves, pathgrp, edge)
+        return nil if edge.curve.nil? # non-nil, must be Sketchup::ArcCurve
+        # FIRST edge in an arc retrieves arc metadata and regenerates ALL arc edges,
+        # Subsequent arc edges ignored, only returning nil
+        ell_orig = edge.curve
+        return nil if curves.member?(ell_orig)
+        curves << ell_orig
+        # Take unit circle, apply ellxform to make duplicate arc...
+        # start and end angle are invariant
+        elledges = pathgrp.entities.add_arc(
+          ORIGIN, X_AXIS, Z_AXIS, 1.0, ell_orig.start_angle, ell_orig.end_angle
+        )
+        ellxform = Geom::Transformation.new(
+          ell_orig.xaxis.to_a + [0.0] +  ell_orig.yaxis.to_a + [0.0] +
+          ell_orig.normal.to_a + [0.0] + ell_orig.center.to_a + [1.0]
+        )
+        pathgrp.entities.transform_entities(ellxform, elledges)
+        ArcGlob.new(elledges)
+      end
+
+      def dupedge(pathgrp, edge)
+        # exit if edge is part of curve
+        return nil unless edge.curve.nil?
+        line_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
+        EdgeGlob.new(line_edges)
+      end
+
+      def updatebounds(dupedges)
+        dupedges.flatten.each do |e|
+          x = e.start.position[0]
+          y = e.start.position[1]
+          @minx = [x, @minx].min
+          @miny = [y, @miny].min
+          @maxx = [x, @maxx].max
+          @maxy = [y, @maxy].max
+        end
+      end
 
       def transform(edges, outer: false)
-        curves = [] # curves that have been processed (may edges in same curve)
+        #puts 'Transform path of %s edges' % [edges.size]
+        curves = [] # curves that have been processed (many edges in same curve)
         # Create yet another group, for each path on the face
         pathgrp = @su_facegrp.entities.add_group
-        # Duplicate the face edges. map returns single edges as [edge] and arcs as [edge,edge,...]
-        #  plus nils for subsequent arc edges - this all to maintain the arc metadata
+        # Duplicate the face edges. map returns single edges as
+        #  "EdgeGlob" and arcs as ArcGlob (aggregating many edges)
+        #  plus nils for subsequent arc edges - this maintains the arc
+        #  metadata
         dupedges = edges.map { |edge|
-          if edge.curve and edge.curve.is_a?(Sketchup::ArcCurve)
-            ell_orig = edge.curve
-            # FIRST edge in an arc retrieves arc metadata and regenerates ALL arc edges,
-            # Subsequent arc edges ignored, returning nil
-            if not curves.member?(ell_orig)
-              curves << ell_orig
-              # Take unit circle, apply ellxform to make duplicate arc...
-              # start and end angle are invariant
-              elledges = pathgrp.entities.add_arc(
-                ORIGIN, X_AXIS, Z_AXIS, 1.0, ell_orig.start_angle, ell_orig.end_angle
-              )
-              ellxform = Geom::Transformation.new(
-                ell_orig.xaxis.to_a + [0.0] +  ell_orig.yaxis.to_a + [0.0] +
-                ell_orig.normal.to_a + [0.0] + ell_orig.center.to_a + [1.0]
-              )
-              pathgrp.entities.transform_entities(ellxform, elledges)
-              ArcGlob.new(elledges)
-            else
-              nil # later edges in same ArcCurve
-            end
-          else
-            line_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
-            EdgeGlob.new(line_edges)
-          end
+          dupcrv(curves, pathgrp, edge) || dupedge(pathgrp, edge)
         }.reject(&:nil?)
         # dupedges is array of LayoutEdge and LayoutArcs
 
@@ -250,15 +261,9 @@ module FaceSVG
         pathgrp.entities.transform_entities(@xform, dupedges.flatten)
 
         # Find the bounds of the loop after transform
-        if outer
-          dupedges.flatten.each { |e|
-            x, y = e.start.position[0], e.start.position[1]
-            @minx = [x, @minx].min
-            @miny = [y, @miny].min
-            @maxx = [x, @maxx].max
-            @maxy = [y, @maxy].max
-          }
-        end
+        updatebounds(dupedges) if outer
+
+        #puts 'Reordering %s edges after transform' % [dupedges.flatten.size]
         FaceSVG::Layout.reorder(dupedges)
       end
     end
@@ -272,16 +277,13 @@ module FaceSVG
         reset()
       end
 
-      ################
       def size
         @facemap.size
       end
 
-      ################
       def reset
         if @su_profilegrp and @su_profilegrp.valid?
           puts format('Remove %s', @su_profilegrp)
-
           Sketchup.active_model.entities.erase_entities @su_profilegrp
         end
 
@@ -295,6 +297,7 @@ module FaceSVG
         @viewport = [0.0, 0.0, -1e100, -1e100] # maxx, maxy of viewport updated in layout_facegrp
       end
 
+      ################
       # Find a named group  Also active_entities, only entities in open group,etc.
       # model.entities.grep(Sketchup::Group).find_all{|g| g.name==gpname }
       # uses fact that entities is array-like, maybe
@@ -368,7 +371,7 @@ module FaceSVG
           # TTD Usability improvements?
           next unless elt.is_a?(Sketchup::Face)
           face = elt
-          puts "processing #{face}"
+
           # Create FaceProfile to hold face profile edges,  holds reference to
           # its containing ProfileCollection
           f = FaceProfile.new(self, face)
