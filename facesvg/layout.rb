@@ -7,6 +7,7 @@ require 'LangHandler'
 
 # Provides SVG module with SVG::Canvas class
 Sketchup.require('facesvg/svg')
+Sketchup.require('facesvg/util')
 
 # i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
 # unit = ['in','ft','mm','cm','m'][i]
@@ -24,25 +25,13 @@ module FaceSVG
     PK_POCKET = 'pocket'.freeze # TTD
     PK_GUIDE = 'guide'.freeze
 
-    # format a position with more brevity
-    def self.pos_s(p)
-      '(%s,%s,%s)' % p.to_a.map { |m| m.round(2) }
-    end
-    # Sometimes, code to duplicate arc gets end point off by some .01
-    #  which screws up key.  So round keys to nearest 0.05
-
-    # Compare two endpoints with tolerance
-    TOLERANCE = 0.05
-    def self.samepos(pos1, pos2)
-      (pos1 - pos2).length < TOLERANCE
-    end
-
     # The ordering of edges in sketchup face boundaries seems
     # arbitrary, make predictable Start at arbitrary element, order
     # edges/arcs with endpoints like (e0,e1),(e1,e2),(e2,e3)...(eN,e0)
     def self.reorder(globs)
-      globs = globs.clone
+      FaceSVG.dbg('Reordering %s path part edges', globs.flatten.size)
 
+      globs = globs.clone
       # Start at some edge/arc
       ordered = [globs[0]]
       globs.delete_at(0)
@@ -56,7 +45,7 @@ module FaceSVG
           end
           if i == (globs.size - 1) # at end
             raise format('Unexpected: No edge/arc connected %s to at %s',
-                         prev_elt, FaceSVG::Layout.pos_s(prev_elt.endpos))
+                         prev_elt, FaceSVG.pos_s(prev_elt.endpos))
           end
         end
       end
@@ -77,20 +66,19 @@ module FaceSVG
     ########################################################################
     # These "globs" collect the edges for an arc with metadata and
     # control to reverse orientation. An edge glob is just a single edge.
+    #  Hold the edges that make up an arc as edge array
     class ArcGlob < Array
       def initialize(elements)
         super()
         concat(elements)
-        #puts 'Transform path %s' % [self]
+        @is_arc = true
+        FaceSVG.dbg('Transform path %s', self)
       end
-      #  Hold the edges that make up an arc as edge array
+
+      attr_reader :is_arc
 
       def inspect
-        format('Arc %s->%s%s', FaceSVG::Layout.pos_s(startpos), FaceSVG::Layout.pos_s(endpos), @reverse ? 'R' : '')
-      end
-
-      def to_s
-        inspect
+        format('Arc %s->%s%s', FaceSVG.pos_s(startpos), FaceSVG.pos_s(endpos), @reverse ? 'R' : '')
       end
 
       def crv
@@ -109,10 +97,6 @@ module FaceSVG
         @reverse = true
         self
       end
-
-      def isArc
-        true
-      end
     end
 
     ########################################################################
@@ -121,16 +105,15 @@ module FaceSVG
       def initialize(elements)
         super()
         concat(elements)
-        @reverse = false
-        #puts 'Transform path %s' % [self]
+        @is_arc = false
+        FaceSVG.dbg('Transform path %s', self)
       end
+
+      attr_reader :is_arc
 
       def inspect
-        format('Edge %s->%s%s', FaceSVG::Layout.pos_s(startpos), FaceSVG::Layout.pos_s(endpos), @reverse ? 'R' : '')
-      end
-
-      def to_s
-        inspect
+        format('Edge %s->%s%s',
+               FaceSVG.pos_s(startpos), FaceSVG.pos_s(endpos), @reverse ? 'R' : '')
       end
 
       def startpos
@@ -141,43 +124,66 @@ module FaceSVG
         @reverse ? self[0].start.position : self[0].end.position
       end
 
-      # Reverse the ordering reported when asked for start or end
       def reverse
         @reverse = true
         self
-      end
-
-      def isArc
-        false
       end
     end
     ########################################################################
     class MyEntitiesObserver < Sketchup::EntitiesObserver
       def onElementRemoved(_entities, entity_id)
-        puts "onElementRemoved: #{entity_id}"
+        FaceSVG.dbg("onElementRemoved: #{entity_id}")
       end
     end
 
     # entities.add_observer, remove_observer
     ########################################################################
     class FaceProfile
-      def initialize(profilecollection, su_face)
-        # Set the transform matrix for all the loops (outer and inside cutouts) on face
-        # Transforms the face edge loops onto z=0 plane, to origin (maybe not +xy though?)
-        @profilecollection = profilecollection
-        @su_face = su_face
-        @xform = Geom::Transformation.new(@su_face.bounds.min, @su_face.normal).inverse
-        @su_facegrp = @profilecollection.su_profilegrp.entities.add_group()
-        @paths = []
+      def self.face_edges(su_face)
+        # return the boundary edges and unconnected segments on a face
+        # face normal...
+        boundary_edges = su_face.edges
+        segment_edges = su_face.all_connected
+                               .select { |e|
+          e.is_a?(Sketchup.Edge) &&
+            !boundary_edges.member?(e) &&
+            (V3d(e.end.position)-V3d(e.start.position)).dot(V3d(su_face.normal))
+        }
+        [boundary_edges, segment_edges]
+      end
+
+      def initialize(_profilecollection, su_face)
+        # Find the face and all its edges
+        # Also find edges that are not loops, on the face
+        # these would be all edges, not part of boundary, that are normal to the
+        # face normal...
+        boundary_edges, segment_edges = FaceProfile.face_edges(su_face)
+
+        # Add them all to a group to copy, and duplicate it
+        tmpgrp = Sketchup.active_model.entities
+                         .add_group([su_face] + boundary_edges + segment_edges)
+        @su_facegrp = Sketchup.active_model.entities
+                              .add_instance(tmpgrp.definition, tmpgrp.transformation)
+        # Transform face,edges onto z=0 plane, to origin (maybe not +xy quadrant?)
+        @xform = Geom::Transformation.new(su_face.bounds.min, su_face.normal).inverse
+        Sketchup.active_model.entities.transform_entities(@xform, @su_facegrp)
+        # revert the temporary face group
+        tmpgrp.explode
+
+        # Get the (single) face from the transformed, copied group
+        @su_face = @su_facegrp.entities.select { |f| f.is_a(Sketchup::Face) } [0]
+        # TODO: may need to use the bounds to transform to +xy quadrant
+        # TODO: issues with reflections
 
         # Keep bounds of transformed face outer profile
         @minx, @miny, @maxx, @maxy = [1e100, 1e100, -1e100, -1e100]
         # Use the outer loop to get the bounds
+
         # Return array of edge arrays.  If edge array size>1 it is an arc
         glob_arr = transform(@su_face.outer_loop.edges, outer: true)
         @paths << glob_arr
 
-        puts format("Outer %s\n", glob_arr)
+        FaceSVG.dbg("Outer %s\n", glob_arr)
         # After outerloop is calculated, can layout the whole facegrp
         @profilecollection.layout_facegrp(self, @minx, @miny, @maxx, @maxy)
 
@@ -185,7 +191,7 @@ module FaceSVG
         @su_face.loops.each do |loop|
           next if loop.equal?(@su_face.outer_loop)
           glob_arr = transform(loop.edges, outer: false)
-          puts format("Inner %s\n", glob_arr)
+          FaceSVG.dbg("Inner %s\n", glob_arr)
           @paths << glob_arr
         end
       end
@@ -242,8 +248,8 @@ module FaceSVG
         end
       end
 
-      def transform(edges, outer: false)
-        #puts 'Transform path of %s edges' % [edges.size]
+      def classify(edges, outer: false)
+        FaceSVG.dbg('Transform path of %s edges', edges.size)
         curves = [] # curves that have been processed (many edges in same curve)
         # Create yet another group, for each path on the face
         pathgrp = @su_facegrp.entities.add_group
@@ -251,6 +257,7 @@ module FaceSVG
         #  "EdgeGlob" and arcs as ArcGlob (aggregating many edges)
         #  plus nils for subsequent arc edges - this maintains the arc
         #  metadata
+
         dupedges = edges.map { |edge|
           dupcrv(curves, pathgrp, edge) || dupedge(pathgrp, edge)
         }.reject(&:nil?)
@@ -263,7 +270,6 @@ module FaceSVG
         # Find the bounds of the loop after transform
         updatebounds(dupedges) if outer
 
-        #puts 'Reordering %s edges after transform' % [dupedges.flatten.size]
         FaceSVG::Layout.reorder(dupedges)
       end
     end
