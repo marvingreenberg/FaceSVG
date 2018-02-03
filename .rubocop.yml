@@ -1,0 +1,110 @@
+AllCops:
+  TargetRubyVersion: 2.1
+
+# Figure out WTF is providing format(), make use of '%' disappear?
+
+Metrics/LineLength:
+  Max: 120
+
+Metrics/MethodLength:
+  Max: 40
+
+Metrics/ParameterLists:
+  Max: 8
+
+Metrics/AbcSize:
+  Max: 60
+  
+Naming/FileName:
+  Enabled: false
+  
+Naming/MethodName:
+  Enabled: false
+
+Naming/BinaryOperatorParameterName:
+  Enabled: false
+
+# Does not work for access between modules
+Style/ColonMethodCall:
+  Enabled: false
+
+Style/ParenthesesAroundCondition:
+  Enabled: false
+
+Style/Semicolon:
+  Enabled: false
+
+Style/EmptyElse:
+  Enabled: false
+
+Layout/SpaceAroundOperators:
+  Enabled: false
+
+Layout/MultilineHashBraceLayout:
+  Enabled: false
+  
+Style/SelfAssignment:
+  Enabled: false
+
+Style/FormatString:
+    Enabled: false
+
+Style/RescueStandardError:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/ParallelAssignment:
+  Enabled: false
+  
+Layout/AlignHash:
+  Enabled: false
+
+Style/ModuleFunction:
+  Enabled: false
+
+Style/ClassVars:
+  Enabled: false
+
+Style/MultilineTernaryOperator:
+  Enabled: false
+Style/TernaryParentheses:
+  Enabled: false
+
+Style/NumericPredicate:
+  Enabled: false
+
+# WTF? Prefer annotated tokens (like %<foo>s) over unannotated tokens (like %s).
+Style/FormatStringToken:
+  Enabled: false
+
+Style/BlockDelimiters:
+  Enabled: false
+
+Style/SingleLineMethods:
+  Enabled: false
+
+Layout/EmptyLineBetweenDefs:
+  Enabled: false
+
+Style/MethodCallWithoutArgsParentheses:
+  Enabled: false
+
+Style/DefWithParentheses:
+  Enabled: false
+
+Style/Not:
+   Enabled: false
+   
+Style/AndOr:
+  Enabled: false
+
+Style/ZeroLengthPredicate:
+  Enabled: false
+
+Layout/MultilineMethodCallBraceLayout:
+  Enabled: false
+
+Style/ConditionalAssignment:
+  Enabled: false
