@@ -7,7 +7,7 @@ module FaceSVG
 
   def self.V3d(*args)
     args = args[0].to_a if args.size == 1
-    FaceSVG::Vn.new(args[0, 2])
+    FaceSVG::Vn.new(args[0, 3])
   end
 
   class Vn < Array
@@ -39,7 +39,7 @@ module FaceSVG
     (pos1 - pos2).length < TOLERANCE
   end
 
-  def self.debug(*args)
+  def self.dbg(*args)
     puts(format(*args)) if ENV['FACESVG_DEBUG']
   end
 end

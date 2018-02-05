@@ -237,29 +237,35 @@ module FaceSVG
     class Loop
       # class Loop factory method.  See "Globs" in layout.rb, basically
       # to aggregate edges with arc metadata, and deal with ordering
-      def self.create(xform, glob_arr, outer)
+      def self.create(xform, glob_arr, kind, depth)
         Loop.new(
           glob_arr.map { |glob|
             glob.isArc() ? ArcObject.new(xform, glob) : EdgeObject.new(xform, glob)
-          }, outer)
+          }, kind, depth)
       end
 
       # Oh, since @attributes are used to pass arguments, they have to
       #  use this other hash syntax...
-      def initialize(pathparts, outer: false)
+      def initialize(pathparts, kind, _depth)
         # pathparts: array of ArcObjects and EdgeObjects
         @pathparts = pathparts
-        if outer
+        if kind==FaceSVG::PK_OUTER
           @attributes = { path_type: 'exterior', fill: 'rgb(0,0,0)' }
-        else
+        elsif kind==FaceSVG::PK_POCKET
+          @attributes = { path_type: 'pocket', stroke_width: '2',
+            stroke: 'rgb(128,128,128)', fill: 'rgb(128,128,128)' }
+        elsif kind==FaceSVG::PK_INNER
           @attributes = { path_type: 'interior', stroke_width: '2',
             stroke: 'rgb(0,0,0)', fill: 'rgb(255,255,255)' }
+        else # PK_GUIDE, let's not fill, could be problematic
+          @attributes = { path_type: 'guide', stroke_width: '2',
+            stroke: 'rgb(20,110,255)' }
         end
       end
 
       attr_reader :attributes
 
-      # Append all indifidual path data parts, with Z at end to closepath
+      # Append all individual path data parts, with Z at end to closepath
       def svgdata
         prev = nil
         (@pathparts.map { |p| d = p.svgdata(prev); prev = p; d }).join(' ') + ' Z'
