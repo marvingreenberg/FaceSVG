@@ -284,7 +284,9 @@ module FaceSVG
       def reset
         if @su_profilegrp and @su_profilegrp.valid?
           puts format('Remove %s', @su_profilegrp)
+          Sketchup.active_model.start_operation(FaceSVG::LAYOUT_SVG)
           Sketchup.active_model.entities.erase_entities @su_profilegrp
+          Sketchup.active_model.commit_operation()
         end
 
         # Use a map to hold the faces, to allow for an observer to update the map
@@ -367,6 +369,7 @@ module FaceSVG
       end
 
       def process_selection
+        Sketchup.active_model.start_operation(FaceSVG::LAYOUT_SVG)
         Sketchup.active_model.selection(&:valid?) .each do |elt|
           # TTD Usability improvements?
           next unless elt.is_a?(Sketchup::Face)
@@ -377,6 +380,7 @@ module FaceSVG
           f = FaceProfile.new(self, face)
           add_face_profile(f.id, f)
         end
+        Sketchup.active_model.commit_operation()
       end
     end
   end

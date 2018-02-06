@@ -5,4 +5,4 @@ plugin: check
 	   ~/'Library/Application Support/SketchUp 2017/SketchUp/Plugins/facesvg/'
 
 check:
-	PATH=$$PATH:/usr/local/bin rubocop facesvg.rb facesvg
+	PATH=$$PATH:/usr/local/bin rubocop --auto-correct facesvg.rb facesvg

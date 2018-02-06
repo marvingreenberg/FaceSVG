@@ -24,6 +24,11 @@ Sketchup.require('facesvg/layout')
 # for way to simply arrange the rectangles efficiently in layout, maybe overkill.
 
 module FaceSVG
+  FACE_SVG = 'FaceSVG'.freeze
+  LAYOUT_SVG = 'Layout SVG Profile'.freeze
+  RESET_LAYOUT = 'Reset layout'.freeze
+  WRITE_SVG = 'Write SVG profile'.freeze
+
   @@spacing = 0.5 # 1/2" spacing
   @@sheetwidth = 24.0
   @@sheetheight = 24.0 # unused
@@ -104,10 +109,10 @@ module FaceSVG
 
       UI.add_context_menu_handler do |context_menu|
         # selset = Sketchup.active_model.selection
-        s_m = context_menu.add_submenu('FaceSVG')
-        s_m.add_item('Reset layout') { facesvg_reset }
-        s_m.add_item('Layout SVG profile') { facesvg_2d_layout }
-        profile().size != 0 && s_m.add_item('Write SVG profile') { facesvg_write }
+        s_m = context_menu.add_submenu(FACE_SVG)
+        s_m.add_item(RESET_LAYOUT) { facesvg_reset }
+        s_m.add_item(LAYOUT_SVG) { facesvg_2d_layout }
+        profile().size != 0 && s_m.add_item(WRITE_SVG) { facesvg_write }
       end
 
       @@context_menu_set = true
