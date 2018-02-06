@@ -213,8 +213,8 @@ module FaceSVG
       end
 
       def reset
-        if @su_profilegrp and @su_profilegrp.valid?
-          puts format('Remove %s', @su_profilegrp)
+        if su_profilegrp(create: false)
+          FaceSVG.dbg('Remove %s', @su_profilegrp)
           Sketchup.active_model.start_operation(FaceSVG::LAYOUT_SVG)
           Sketchup.active_model.entities.erase_entities @su_profilegrp
           Sketchup.active_model.commit_operation()
