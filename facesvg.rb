@@ -8,7 +8,7 @@ require 'LangHandler'
 module FaceSVG
   lang = LanguageHandler.new('facesvg')
 
-  extension = SketchupExtension.new('Face SVG Export', 'facesvg/main.rb')
+  extension = SketchupExtension.new('Face SVG Export', 'facesvg/main')
   extension.creator     = 'Marvin Greenberg'
   extension.description = lang.GetString(
     'Tool to export faces as SVG.  Designed to support Shaper Origin.'
