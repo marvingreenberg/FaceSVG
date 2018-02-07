@@ -41,6 +41,18 @@ module FaceSVG
     h[k] = FaceSVG::Layout::ProfileCollection.new(k)
   }
 
+  def operation(opname, transaction: true)
+    Sketchup.active_model.start_operation(opname) if transaction
+    begin
+      yield
+      Sketchup.active_model.commit_operation(opname) if transaction
+    rescue => exception
+      _handle(excp)
+      Sketchup.active_model.abort_operation(opname) if transaction
+      raise
+    end
+  end
+
   # On Mac, can have multiple open models, keep separate tranfrom instance for each model
   def profile()
     title = Sketchup.active_model.title or 'Untitled'
@@ -61,25 +73,23 @@ module FaceSVG
   def version; @@version; end
 
   def facesvg_2d_layout
-    profile().process_selection()
-  rescue => exception
-    _handle(exception)
-    raise
+    operation(LAYOUT_SVG) do
+      profile().process_selection()
+    end
   end
 
   def facesvg_write
     # Write the SVG file
-    profile().write()
-  rescue => exception
-    _handle(exception)
-    raise
+    operation('write', transaction: false) do
+      profile().write()
+    end
   end
 
+  # Almost pointless?
   def facesvg_reset
     # Delete the cut path layout
-    profile().reset()
-  rescue => exception
-    _handle(exception)
+    operation(RESET_LAYOUT) do
+      profile().reset()
     raise
   end
 
