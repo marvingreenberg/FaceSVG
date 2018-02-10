@@ -1,4 +1,4 @@
-Sketchup.require('facesvg/util')
+Sketchup.require('facesvg/constants')
 
 module FaceSVG
   module SVG
@@ -246,20 +246,19 @@ module FaceSVG
 
       # Oh, since @attributes are used to pass arguments, they have to
       #  use this other hash syntax...
-      def initialize(pathparts, kind, _depth)
+      def initialize(pathparts, kind, depth)
         # pathparts: array of ArcObjects and EdgeObjects
         @pathparts = pathparts
-        if kind==FaceSVG::PK_OUTER
-          @attributes = { path_type: 'exterior', fill: 'rgb(0,0,0)' }
-        elsif kind==FaceSVG::PK_POCKET
-          @attributes = { path_type: 'pocket', stroke_width: '2',
-            stroke: 'rgb(128,128,128)', fill: 'rgb(128,128,128)' }
-        elsif kind==FaceSVG::PK_INNER
-          @attributes = { path_type: 'interior', stroke_width: '2',
-            stroke: 'rgb(0,0,0)', fill: 'rgb(255,255,255)' }
+        if kind == PK_OUTER
+          @attributes = { path_type: kind, depth: depth, fill: 'rgb(0,0,0)' }
+        elsif kind == PK_POCKET
+          @attributes = { path_type: kind, depth: depth, fill: 'rgb(128,128,128)',
+            stroke_width: '2', stroke: 'rgb(128,128,128)' }
+        elsif kind == PK_INNER
+          @attributes = { path_type: kind, depth: depth, fill: 'rgb(255,255,255)',
+            stroke_width: '2', stroke: 'rgb(0,0,0)' }
         else # PK_GUIDE, let's not fill, could be problematic
-          @attributes = { path_type: 'guide', stroke_width: '2',
-            stroke: 'rgb(20,110,255)' }
+          @attributes = { path_type: kind, stroke_width: '2', stroke: 'rgb(20,110,255)' }
         end
       end
 
