@@ -73,7 +73,7 @@ module FaceSVG
       end
       include Reversible
 
-      def self.make(curves, edge)
+      def self.create(curves, edge)
         # return nil if line, or already processed curve containing edge
         return nil if edge.curve.nil? || curves.member?(edge.curve)
         curves << edge.curve
@@ -90,7 +90,7 @@ module FaceSVG
       end
       include Reversible
 
-      def self.make(edge)
+      def self.create(edge)
         # exit if edge is part of curve
         return nil unless edge.curve.nil?
         Line.new(edge)
@@ -137,7 +137,7 @@ module FaceSVG
         su_profilegrp.entities.grep(Sketchup::Group).each do |g|
           # Get a surface (to calculate pocket offset if needed)
           faces = g.entities.grep(Sketchup::Face)
-          surface = faces.find(&marked?(SURFACE))
+          surface = faces.find { |f| f.material == SURFACE }
           faces.each { |f| svgpaths(svg, f, surface) }
         end
         # TODO: Figure out multi file
@@ -211,9 +211,9 @@ module FaceSVG
 
       def svgpaths(svg, face, surface)
         # Only do outer loop for pocket faces
-        if marked?(POCKET).call(face)
+        if face.material == POCKET
           paths = [face.outer_loop]
-          depth = face_offset(face, surface)
+          depth = FaceSVG.face_offset(face, surface)
           profile_kind = PK_POCKET
         else
           profile_kind = nil # set for each loop on face

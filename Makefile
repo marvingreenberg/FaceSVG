@@ -7,6 +7,10 @@ plugin: check
 	   ~/'Library/Application Support/SketchUp 2016/SketchUp/Plugins/facesvg/'
 	cp -f facesvg/*rb \
 	   ~/'Library/Application Support/SketchUp 2016/SketchUp/Plugins/facesvg/'
+	-mkdir \
+	   ~/'Library/Application Support/SketchUp 2017/SketchUp/Plugins/facesvg/'
+	cp facesvg.rb \
+	   ~/'Library/Application Support/SketchUp 2017/SketchUp/Plugins'
 	cp -f facesvg/*rb \
 	   ~/'Library/Application Support/SketchUp 2017/SketchUp/Plugins/facesvg/'
 

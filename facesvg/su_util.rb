@@ -49,8 +49,8 @@ module FaceSVG
     end
   end
 
-  def marked?(m: MARKER)
-    proc { |f| f.is_a?(Sketchup::Face) && f.material == m }
+  def marked?
+    proc { |f| f.is_a?(Sketchup::Face) && f.material == MARKER }
   end
 
   def unmark(saved_materials, *f_ary)
