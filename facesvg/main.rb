@@ -31,7 +31,8 @@ module FaceSVG
       @facesvg_version = '1.1.0' # FaceSVG::extension.version inaccessible, inexplicably
       @default_dir = nil
       @svg_output = SINGLE_FILE
-      if FaceSVG.su_model_unit == INCHES
+      @units = FaceSVG.su_model_unit
+      if @units == INCHES
         @layout_spacing = 0.5 # 1/2" spacing
         @layout_width = 24.0
         @pocket_max = 0.75
@@ -45,6 +46,7 @@ module FaceSVG
         @cut_depth = 5.0.mm
       end
     end
+    attr_accessor :units
     attr_accessor :cut_depth
     attr_accessor :default_dir
     attr_accessor :facesvg_version

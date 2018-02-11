@@ -42,6 +42,7 @@ module FaceSVG
     raise
   end
 
+  ################
   def mark(saved_materials, *f_ary)
     f_ary.each do |f|
       saved_materials[f.entityID] = f.material

@@ -1,13 +1,36 @@
 Sketchup.require('facesvg/constants')
+Sketchup.require('facesvg/reorder') # for reorder function and Line/Arc classes
 
 module FaceSVG
   module SVG
+    extend self
+
     FMT = '%0.3f'.freeze
+
+    def V2d(*args)
+      args = args[0].to_a if args.size == 1
+      Vn.new(args[0, 2])
+    end
+
+    class Vn < Array
+      # A simple vector supporting scalar multiply and vector add, % dot product, magnitude
+      def initialize(elts); concat(elts); end
+      def *(scalar); Vn.new(map { |c| c * scalar }); end
+      def +(v2); Vn.new(zip(v2).map { |c, v| c + v }); end
+      def -(v2); Vn.new(zip(v2).map { |c, v| c - v }); end
+      def %(v2); zip(v2).map { |c, v| c * v }.reduce(:+); end
+      def abs(); map { |c| c * c }.reduce(:+)**0.5; end
+      def ==(v2); (self - v2).abs < 0.0005; end
+      def inspect(); '(' + map { |c| FMT % c }.join(',') + ')'; end
+      def to_s; inspect; end
+      def x; self[0]; end
+      def y; self[1]; end
+    end
 
     # Sketchup is a mess - it draws curves and keeps information about them
     #  but treats everything as edges
     # Create class to aggregate ArcCurve with its associated Edges
-    class ArcObject
+    class SVGArc
       # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
       # with accurate arc information
       def initialize(xform, arcglob)
@@ -15,12 +38,12 @@ module FaceSVG
         @crv = @glob.crv
         # Ensure the edges are ordered as a path
 
-        @centerxy = FaceSVG.V2d(@crv.center.transform(xform))
-        @startxy = FaceSVG.V2d(@glob.startpos.transform(xform))
-        @endxy = FaceSVG.V2d(@glob.endpos.transform(xform))
+        @centerxy = V2d(@crv.center.transform(xform))
+        @startxy = V2d(@glob.startpos.transform(xform))
+        @endxy = V2d(@glob.endpos.transform(xform))
 
         ellipse_parameters()
-        FaceSVG.dbg("Defining ArcObject start, end, center '%s' '%s' '%s'",
+        FaceSVG.dbg("Defining SVGArc start, end, center '%s' '%s' '%s'",
                     @startxy, @endxy, @centerxy)
       end
 
@@ -33,7 +56,7 @@ module FaceSVG
 
       # cw in svg coordinate space, +y is down
       def cw_normal(v0)
-        FaceSVG.V2d(-v0.y, v0.x)
+        V2d(-v0.y, v0.x)
       end
 
       def sweep()
@@ -55,12 +78,12 @@ module FaceSVG
         # circle, axes are orthogonal, same length (compared subject to Skecthup "tolerance")
         if ((@crv.xaxis dot @crv.yaxis) == 0 and
             (@crv.xaxis.length == @crv.yaxis.length))
-          @vx = FaceSVG.V2d(@crv.xaxis)
-          @vy = FaceSVG.V2d(@crv.yaxis)
+          @vx = V2d(@crv.xaxis)
+          @vy = V2d(@crv.yaxis)
           @rx = @ry = @crv.radius
         else
-          f1 = FaceSVG.V2d(@crv.xaxis)
-          f2 = FaceSVG.V2d(@crv.yaxis)
+          f1 = V2d(@crv.xaxis)
+          f2 = V2d(@crv.yaxis)
           vertex_angle1 = 0.5 * Math.atan2(((f1 dot f2) * 2), ((f1 dot f1) - (f2 dot f2)))
           # Get the two vertices "x" and "y"
           @vx = ellipseXY_at_angle(vertex_angle1)
@@ -83,7 +106,7 @@ module FaceSVG
 
       def ellipseXY_at_angle(ang, absolute: false)
         # Return point on ellipse at angle, relative to center.  If absolute, add center
-        p = FaceSVG.V2d(@crv.xaxis) * Math.cos(ang) + FaceSVG.V2d(@crv.yaxis)*Math.sin(ang)
+        p = V2d(@crv.xaxis) * Math.cos(ang) + V2d(@crv.yaxis)*Math.sin(ang)
         p = p + @centerxy if absolute
         p
       end
@@ -111,12 +134,12 @@ module FaceSVG
       end
     end
 
-    class EdgeObject
+    class SVGSegment
       # Edge is a single line segment with a start and end x,y
       def initialize(xform, edgeglob)
         @glob = edgeglob
-        @startxy = FaceSVG.V2d(@glob.startpos.transform(xform))
-        @endxy = FaceSVG.V2d(@glob.endpos.transform(xform))
+        @startxy = V2d(@glob.startpos.transform(xform))
+        @endxy = V2d(@glob.endpos.transform(xform))
       end
       attr_reader :startxy
       attr_reader :endxy
@@ -135,7 +158,8 @@ module FaceSVG
     VIEWBOX = "new #{FMT} #{FMT} #{FMT} #{FMT}".freeze
     # Class used to collect the output paths to be emitted as SVG
     class Canvas
-      def initialize(viewport, unit, version)
+      def initialize(fname, viewport, unit, version)
+        @filename = fname
         @minx, @miny, @maxx, @maxy = viewport
         @width = @maxx - @minx
         @height = @maxy - @miny
@@ -157,6 +181,8 @@ module FaceSVG
                        'shaper:sketchupaddin' => version # plugin version
                      })
       end
+
+      attr_reader :filename
 
       # Set the SVG model title
       def title(text); @root.add_child(Node.new('title', text: text)); end
@@ -193,6 +219,32 @@ module FaceSVG
       def write(file)
         file.write("<!-- ARC is A xrad yrad xrotation-degrees largearc sweep end_x end_y -->\n")
         @root.write(file)
+      end
+    end
+
+    def addpaths(face, surface)
+      # Only do outer loop for pocket faces
+      if face.material == POCKET
+        paths = [face.outer_loop]
+        depth = FaceSVG.face_offset(face, surface)
+        profile_kind = PK_POCKET
+      else
+        profile_kind = nil # set for each loop on face
+        paths = face.loops
+        depth = CFG.cut_depth
+      end
+
+      paths.each do |loop|
+        profile_kind = profile_kind || (loop == face.outer_loop) ? PK_OUTER : PK_INNER
+        FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, depth)
+        # regroup edges so arc edges are grouped with metadata, all ordered end to start
+        curves = [] # Keep track of processed arcs
+        pathparts = loop.edges.map { |edge|
+          Arc.create(curves, edge) || Line.create(edge)
+        }.reject(&:nil?)
+        pathparts = reorder(pathparts)
+        svgloop = Loop.create(pathparts, profile_kind, depth)
+        svg.path(svgloop.svgdata, svgloop.attributes)
       end
     end
 
@@ -240,14 +292,14 @@ module FaceSVG
       def self.create(xform, glob_arr, kind, depth)
         Loop.new(
           glob_arr.map { |glob|
-            glob.isArc() ? ArcObject.new(xform, glob) : EdgeObject.new(xform, glob)
+            glob.isArc() ? SVGArc.new(xform, glob) : SVGSegment.new(xform, glob)
           }, kind, depth)
       end
 
       # Oh, since @attributes are used to pass arguments, they have to
       #  use this other hash syntax...
       def initialize(pathparts, kind, depth)
-        # pathparts: array of ArcObjects and EdgeObjects
+        # pathparts: array of SVGArcs and SVGSegments
         @pathparts = pathparts
         if kind == PK_OUTER
           @attributes = { path_type: kind, depth: depth, fill: 'rgb(0,0,0)' }

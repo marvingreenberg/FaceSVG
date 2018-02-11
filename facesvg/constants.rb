@@ -37,6 +37,7 @@ module FaceSVG
   RESET_LAYOUT = 'Reset layout'.freeze
   WRITE_SVG = 'Write SVG profile'.freeze
   SVG_OUTPUT_FILE = 'SVG output file'.freeze
+  SVG_OUTPUT_DIRECTORY = 'SVG output directory'.freeze
   PROFILE_GROUP = 'SVG Profile Group'.freeze # group name
   PROFILE_LAYER = 'SVG Profile'.freeze # layer name
 end

@@ -12,91 +12,6 @@ Sketchup.require('facesvg/svg')
 
 module FaceSVG
   module Layout
-    # The ordering of edges in sketchup face boundaries seems
-    # arbitrary, make predictable Start at arbitrary element, order
-    # edges/arcs with endpoints like (e0,e1),(e1,e2),(e2,e3)...(eN,e0)
-    def self.reorder(elements)
-      # Start at some edge/arc
-      ordered = [elements[0]]
-      elements.delete_at(0)
-
-      until elements.empty?
-        prev_elt = ordered[-1]
-        elements.each_with_index do |g, i|
-          if connected(ordered, prev_elt, g)
-            elements.delete_at(i)
-            break
-          end
-          if i == (elements.size - 1) # at end
-            raise format('Unexpected: No edge/arc connected %s to at %s',
-                         prev_elt, FaceSVG.pos_s(prev_elt.endpos))
-          end
-        end
-      end
-      ordered
-    end
-
-    def self.connected(ordered, prev_elt, glob)
-      if FaceSVG.samepos(prev_elt.endpos, glob.startpos)
-        ordered << glob
-        true
-      elsif FaceSVG.samepos(prev_elt.endpos, glob.endpos)
-        ordered << glob.reverse
-        true
-      else
-        false
-      end
-    end
-
-    ########################################################################
-    # These "elements" collect the edges for an arc with metadata and
-    # control to reverse orientation.  Lines just have an edge
-    # Many edges are in one arc, so ignore later edges in a processed arc
-    module Reversible
-      def inspect
-        format('%s %s->%s', self.class.name, FaceSVG.pos_s(startpos), FaceSVG.pos_s(endpos))
-      end
-      def reverse
-        @startpos, @endpos = [@endpos, @startpos]
-        self
-      end
-      attr_reader :is_arc
-      attr_reader :startpos
-      attr_reader :endpos
-    end
-    class Arc
-      def initialize(edge)
-        @startpos = edge.curve.first_edge.start.position
-        @endpos = edge.curve.last_edge.end.position
-        @is_arc = true
-        FaceSVG.dbg('Transform path %s', self)
-      end
-      include Reversible
-
-      def self.create(curves, edge)
-        # return nil if line, or already processed curve containing edge
-        return nil if edge.curve.nil? || curves.member?(edge.curve)
-        curves << edge.curve
-        Arc.new(edge)
-      end
-    end
-    ################
-    class Line
-      def initialize(edge)
-        @startpos = edge.start.position
-        @startpos = edge.end.position
-        @is_arc = false
-        FaceSVG.dbg('Transform path %s', self)
-      end
-      include Reversible
-
-      def self.create(edge)
-        # exit if edge is part of curve
-        return nil unless edge.curve.nil?
-        Line.new(edge)
-      end
-    end
-
     ################
     class ProfileCollection
       # Used to transform the points in a face loop, and find the min,max x,y in
@@ -119,32 +34,48 @@ module FaceSVG
 
         # Information to manage the layout, maxx, maxy updated in layout_facegrp
         @layoutx, @layouty, @rowheight = [CFG.layout_spacing, CFG.layout_spacing, 0.0]
-        @viewport = [0.0, 0.0, -1e100, -1e100]
       end
 
       ################
-      def write
-        # UI: write any layed out profiles as svg
-        # TODO: Figure out multi file
-        filepath = UI.savepanel(SVG_OUTPUT_FILE,
-                                CFG.default_dir, "#{@title}.svg")
-        return false if filepath.nil?
-        CFG.default_dir = File.dirname(filepath)
-        svg = SVG::Canvas.new(@viewport, INCHES, CFG.facesvg_version)
-        svg.title(format('%s cut profile', @title))
+      def makesvg(name, index, *grps)
+        viewport = [grp.bounds.min.x, grp.bounds.min.y, grp.bounds.max.x, grp.bounds.max.y]
+        fname = format(name, index)
+        svg = SVG::Canvas.new(fname, viewport, CFG.units, CFG.facesvg_version)
+        svg.title(format('%s cut profile %s', @title, index))
         svg.desc(format('Shaper cut profile from Sketchup model %s', @title))
 
-        su_profilegrp.entities.grep(Sketchup::Group).each do |g|
+        grps.each do |g|
           # Get a surface (to calculate pocket offset if needed)
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |f| f.material == SURFACE }
-          faces.each { |f| svgpaths(svg, f, surface) }
+          faces.each { |f| svg.addpaths(f, surface) }
         end
-        # TODO: Figure out multi file
-        if CFG.svg_output == SINGLE_FILE
-          File.open(filepath, 'w') { |file| svg.write(file) }
+        svg
+      end
+      ################
+      def write
+        # UI: write any layed out profiles as svg
+        grps = su_profilegrp.entities.grep(Sketchup::Group)
+
+        if CFG.svg_output == MULTI_FILE
+          # Multi file - generate multiple "svg::Canvas"
+          outpath = UI.select_directory(SVG_OUTPUT_DIRECTORY, CFG.default_dir)
+          return false if outpath.nil?
+          CFG.default_dir = outpath
+          name = "#{@title}%s.svg"
+          svglist = grps.each_with_index.map { |g, i| makesvg(name, i, g) }
         else
-          UI.messagebox('Not implemented')
+          # single_file - generate one "svg::Canvas" with all face grps
+          outpath = UI.savepanel(SVG_OUTPUT_FILE,
+                                 CFG.default_dir, "#{@title}.svg")
+          return false if outpath.nil?
+          CFG.default_dir = File.dirname(outpath)
+          name = File.basename(outpath)
+          svglist = [makesvg(name, nil, *grps)]
+        end
+
+        svglist.each do |svg|
+          File.open(File.join(CFG.default_dir, svg.filename), 'w') { |file| svg.write(file) }
         end
       end
       ################
@@ -193,7 +124,6 @@ module FaceSVG
           su_profilegrp.entities.transform_entities(layout_xf, newgrp)
 
           @layoutx += CFG.layout_spacing + maxx - minx
-          @viewport[2] = [@viewport[2], @layoutx].max
           # As each element is layed out horizontally, keep track of the tallest bit
           @rowheight = [@rowheight, maxy - miny].max
           if @layoutx > CFG.layout_width
@@ -201,39 +131,10 @@ module FaceSVG
             @layouty += @rowheight + CFG.layout_spacing
             @rowheight = 0.0
           end
-          # Adjust the x, y max for viewport as each face is laid out
-          @viewport[3] = [@viewport[3], @layouty + @rowheight].max
-          @viewport[2] = [@viewport[2], @layoutx].max
         end
       end
 
       ################
-
-      def svgpaths(svg, face, surface)
-        # Only do outer loop for pocket faces
-        if face.material == POCKET
-          paths = [face.outer_loop]
-          depth = FaceSVG.face_offset(face, surface)
-          profile_kind = PK_POCKET
-        else
-          profile_kind = nil # set for each loop on face
-          paths = face.loops
-          depth = CFG.cut_depth
-        end
-
-        paths.each do |loop|
-          profile_kind = profile_kind || (loop == face.outer_loop) ? PK_OUTER : PK_INNER
-          FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, depth)
-          # regroup edges so arc edges are grouped with metadata, all ordered end to start
-          curves = [] # Keep track of processed arcs
-          pathparts = loop.edges.map { |edge|
-            Arc.create(curves, edge) || Line.create(edge)
-          }.reject(&:nil?)
-          pathparts = Layout.reorder(pathparts)
-          svgloop = SVG::Loop.create(pathparts, profile_kind, depth)
-          svg.path(svgloop.svgdata, svgloop.attributes)
-        end
-      end
     end
   end
 end
