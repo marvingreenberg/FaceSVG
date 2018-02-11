@@ -38,7 +38,15 @@ module FaceSVG
 
       ################
       def makesvg(name, index, *grps)
-        viewport = [grp.bounds.min.x, grp.bounds.min.y, grp.bounds.max.x, grp.bounds.max.y]
+        xmin = ymin = 0.0
+        xmax = ymax = -1.0e100
+        grps.each do |g|
+          xmin = [xmin, g.bounds.min.x].min
+          ymin = [ymin, g.bounds.min.y].min
+          xmax = [xmax, g.bounds.max.x].max
+          ymax = [ymax, g.bounds.max.y].max
+        end
+        viewport = [xmin, ymin, xmax, ymax]
         fname = format(name, index)
         svg = SVG::Canvas.new(fname, viewport, CFG.units, CFG.facesvg_version)
         svg.title(format('%s cut profile %s', @title, index))

@@ -220,31 +220,31 @@ module FaceSVG
         file.write("<!-- ARC is A xrad yrad xrotation-degrees largearc sweep end_x end_y -->\n")
         @root.write(file)
       end
-    end
 
-    def addpaths(face, surface)
-      # Only do outer loop for pocket faces
-      if face.material == POCKET
-        paths = [face.outer_loop]
-        depth = FaceSVG.face_offset(face, surface)
-        profile_kind = PK_POCKET
-      else
-        profile_kind = nil # set for each loop on face
-        paths = face.loops
-        depth = CFG.cut_depth
-      end
+      def addpaths(face, surface)
+        # Only do outer loop for pocket faces
+        if face.material == POCKET
+          paths = [face.outer_loop]
+          depth = FaceSVG.face_offset(face, surface)
+          profile_kind = PK_POCKET
+        else
+          profile_kind = nil # set for each loop on face
+          paths = face.loops
+          depth = CFG.cut_depth
+        end
 
-      paths.each do |loop|
-        profile_kind = profile_kind || (loop == face.outer_loop) ? PK_OUTER : PK_INNER
-        FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, depth)
-        # regroup edges so arc edges are grouped with metadata, all ordered end to start
-        curves = [] # Keep track of processed arcs
-        pathparts = loop.edges.map { |edge|
-          Arc.create(curves, edge) || Line.create(edge)
-        }.reject(&:nil?)
-        pathparts = reorder(pathparts)
-        svgloop = Loop.create(pathparts, profile_kind, depth)
-        svg.path(svgloop.svgdata, svgloop.attributes)
+        paths.each do |loop|
+          profile_kind = profile_kind || (loop == face.outer_loop) ? PK_OUTER : PK_INNER
+          FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, depth)
+          # regroup edges so arc edges are grouped with metadata, all ordered end to start
+          curves = [] # Keep track of processed arcs
+          pathparts = loop.edges.map { |edge|
+            Arc.create(curves, edge) || Line.create(edge)
+          }.reject(&:nil?)
+          pathparts = FaceSVG.reorder(pathparts)
+          svgloop = Loop.create(pathparts, profile_kind, depth)
+          svg.path(svgloop.svgdata, svgloop.attributes)
+        end
       end
     end
 

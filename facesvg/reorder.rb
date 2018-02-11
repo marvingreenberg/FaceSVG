@@ -36,7 +36,7 @@ module FaceSVG
   class Line
     def initialize(edge)
       @startpos = edge.start.position
-      @startpos = edge.end.position
+      @endpos = edge.end.position
       @is_arc = false
       FaceSVG.dbg('Transform path %s', self)
     end
