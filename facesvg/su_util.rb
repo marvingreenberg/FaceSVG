@@ -25,7 +25,7 @@ module FaceSVG
     [INCHES, 'ft', MM, CM, 'm'][i]
   end
 
-  def su_operation(_opname, transaction: false)
+  def su_operation(opname, transaction: true)
     # Perform an operation, display or log traceback.  if transaction: true
     # (default) all SU calls are collected into an undo transaction with 'opname'
     Sketchup.active_model.start_operation(opname) if transaction
@@ -74,6 +74,48 @@ module FaceSVG
     }
   end
 
+  class Bounds2d
+    def initialize()
+      @minx = @miny = 1e100
+      @maxx = @maxy = -1e100
+    end
+    attr_reader :minx
+    attr_reader :miny
+    attr_reader :maxx
+    attr_reader :maxy
+
+    def to_s
+      format('Bounds2d(min %s,%s max %s,%s)', @minx, @miny, @maxx, @maxy)
+    end
+
+    def min_at_origin?
+      @minx == 0.0 && @miny == 0.0
+    end
+
+    def shift_transform
+      # Return a transformation to move min to 0,0, and shift bounds accordingly
+      @maxy -= @miny
+      @maxx -= @minx
+      xf = Geom::Transformation
+           .new([1.0, 0.0, 0.0, 0.0,
+                 0.0, 1.0, 0.0, 0.0,
+                 0.0, 0.0, 1.0, 0.0,
+                 -@minx, -@miny, 0.0, 1.0])
+      @miny = @minx = 0.0
+      xf
+    end
+
+    def update(*e_ary)
+      e_ary.each do |e|
+        @minx = [@minx, e.bounds.min.x].min
+        @miny = [@miny, e.bounds.min.y].min
+        @maxx = [@maxx, e.bounds.max.x].max
+        @maxy = [@maxy, e.bounds.max.y].max
+      end
+      self
+    end
+  end
+
   def annotate_related_faces(face)
     proc { |r|
       puts format('plane1 %s plane2 %s', face.plane.to_a, r.plane.to_a)
@@ -117,13 +159,21 @@ module FaceSVG
       related_faces = new_faces
                       .grep(Sketchup::Face).select(&related_faces?(face))
                       .each(&annotate_related_faces(face))
-      # Delete copied faces, not originally selected and not "related"
+
+      bnds = Bounds2d.new.update(*related_faces)
+      # "ORIGIN" may still have parts of faces in negative, maybe
+
+      # Delete copied faces, that were not originally selected and not "related"
       related_faces_and_edges = (related_faces + related_faces.map(&:edges)).flatten
       Sketchup.active_model.entities
               .erase_entities(new_entities - related_faces_and_edges)
-      # Finally regroup all the copied entities into a new facegrp
-      facegrp = Sketchup.active_model.entities.add_group(related_faces_and_edges)
-      yield facegrp
+
+      unless bnds.min_at_origin?
+        Sketchup.active_model.entities
+                .transform_entities(bnds.shift_transform, related_faces_and_edges)
+      end
+
+      yield related_faces_and_edges, bnds
     end
   end
 end

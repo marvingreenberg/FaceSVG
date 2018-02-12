@@ -38,15 +38,8 @@ module FaceSVG
 
       ################
       def makesvg(name, index, *grps)
-        xmin = ymin = 0.0
-        xmax = ymax = -1.0e100
-        grps.each do |g|
-          xmin = [xmin, g.bounds.min.x].min
-          ymin = [ymin, g.bounds.min.y].min
-          xmax = [xmax, g.bounds.max.x].max
-          ymax = [ymax, g.bounds.max.y].max
-        end
-        viewport = [xmin, ymin, xmax, ymax]
+        bnds2d = Bounds2d.new.update(*grps)
+        viewport = [0.0, 0.0, bnds2d.maxx-bnds2d.minx, bnds2d.maxy-bnds2d.miny]
         fname = format(name, index)
         svg = SVG::Canvas.new(fname, viewport, CFG.units, CFG.facesvg_version)
         svg.title(format('%s cut profile %s', @title, index))
@@ -56,7 +49,9 @@ module FaceSVG
           # Get a surface (to calculate pocket offset if needed)
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |f| f.material == SURFACE }
-          faces.each { |f| svg.addpaths(f, surface) }
+          # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
+          xf = index.nil? ? g.transformation : IDENTITY
+          faces.each { |f| svg.addpaths(xf, f, surface) }
         end
         svg
       end
@@ -110,30 +105,29 @@ module FaceSVG
       ################
       def add_su_facegrp(facegrp)
         # Add new element to existing profile group by recreating the group
+        su_profilegrp.layer = Sketchup.active_model.layers[0]
         @su_profilegrp = Sketchup.active_model.entities
-                                 .add_group(su_profilegrp.explode + [facegrp])
+                                 .add_group(@su_profilegrp.explode + [facegrp])
         @su_profilelayer = Sketchup.active_model.layers.add(PROFILE_LAYER)
-        @su_profilegrp.layer = @su_profilelayer
         @su_profilegrp.name = PROFILE_GROUP
+        @su_profilegrp.layer = @su_profilelayer
       end
       ################
       def layout_facegrps(*su_faces)
-        FaceSVG.capture_faceprofiles(*su_faces) do |newgrp|
-          bounds = newgrp.bounds
-          minx, miny = bounds.min.x, bounds.min.y
-          maxx, maxy = bounds.max.x, bounds.max.y
+        FaceSVG.capture_faceprofiles(*su_faces) do |new_entities, bnds2d|
+          layout_xf = Geom::Transformation
+                      .new([@layoutx - bnds2d.minx, @layouty - bnds2d.miny, 0.0])
+          # explode, work around more weird behavior with Arcs?
+          # Transform them and then add them back into a group
+          Sketchup.active_model.entities.transform_entities(layout_xf, new_entities)
 
-          FaceSVG.dbg('Face bounds,  %s %s to %s,%s,0',
-                      bounds.min, bounds.max, @layoutx, @layoutx)
+          newgrp = su_profilegrp.entities.add_group(new_entities)
+          FaceSVG.dbg('Face %s  layout x,y %s %s', bnds2d, @layoutx, @layoutx)
           add_su_facegrp(newgrp)
 
-          layout_xf = Geom::Transformation
-                      .new([@layoutx - minx, @layouty - miny, 0.0])
-          su_profilegrp.entities.transform_entities(layout_xf, newgrp)
-
-          @layoutx += CFG.layout_spacing + maxx - minx
+          @layoutx += CFG.layout_spacing + bnds2d.maxx - bnds2d.minx
           # As each element is layed out horizontally, keep track of the tallest bit
-          @rowheight = [@rowheight, maxy - miny].max
+          @rowheight = [@rowheight, bnds2d.maxy - bnds2d.miny].max
           if @layoutx > CFG.layout_width
             @layoutx = 0.0 + CFG.layout_spacing
             @layouty += @rowheight + CFG.layout_spacing

@@ -4,51 +4,53 @@ module FaceSVG
   # These "elements" collect the edges for an arc with metadata and
   # allow control to reverse orientation, for reordering.  Lines just have an edge
   # Many edges are in one arc, so ignore later edges in a processed arc
-  module Reversible
-    def inspect
-      format('%s %s->%s', self.class.name, startpos, endpos)
-    end
+  module PathPart
     def reverse
       @startpos, @endpos = [@endpos, @startpos]
       self
     end
-    attr_reader :is_arc
+    def inspect
+      format('%s %s->%s', self.class.name, startpos, endpos)
+    end
+    def self.create(xform, curves, edge)
+      if edge.curve
+        # many edges are part of one arc, process once
+        if curves.member?(edge.curve)
+          puts format('Edge %s %s (curve %s) already processed', edge.start.position, edge.end.position, edge.curve)
+          return nil
+        end
+        curves << edge.curve
+        Arc.new(xform, edge)
+      else
+        Line.new(xform, edge)
+      end
+    end
+    attr_reader :crv
+    attr_reader :xform
     attr_reader :startpos
     attr_reader :endpos
   end
   class Arc
-    def initialize(edge)
-      @startpos = edge.curve.first_edge.start.position
-      @endpos = edge.curve.last_edge.end.position
-      @is_arc = true
-      FaceSVG.dbg('Transform path %s', self)
+    def initialize(xform, edge)
+      @xform = xform
+      @crv = edge.curve
+      @startpos = @crv.first_edge.start.position
+      @endpos = @crv.last_edge.end.position
+      FaceSVG.dbg('Transform path %s', inspect)
     end
-    include Reversible
-
-    def self.create(curves, edge)
-      # return nil if line, or already processed curve containing edge
-      return nil if edge.curve.nil? || curves.member?(edge.curve)
-      curves << edge.curve
-      Arc.new(edge)
-    end
+    include PathPart
   end
   ################
   class Line
-    def initialize(edge)
-      @startpos = edge.start.position
-      @endpos = edge.end.position
-      @is_arc = false
-      FaceSVG.dbg('Transform path %s', self)
+    def initialize(xform, edge)
+      @xform = xform
+      @crv = nil
+      @startpos = edge.start.position.transform(xform)
+      @endpos = edge.end.position.transform(xform)
+      FaceSVG.dbg('Transform path %s', inspect)
     end
-    include Reversible
-
-    def self.create(edge)
-      # exit if edge is part of curve
-      return nil unless edge.curve.nil?
-      Line.new(edge)
-    end
+    include PathPart
   end
-
   ################
   # The ordering of edges in sketchup face boundaries seems
   # arbitrary, make predictable Start at arbitrary element, order
@@ -75,12 +77,14 @@ module FaceSVG
     ordered
   end
 
-  def connected(ordered, prev_elt, glob)
-    if samepos(prev_elt.endpos, glob.startpos)
-      ordered << glob
+  def connected(ordered, prev_elt, pathpart)
+    FaceSVG.dbg('Test connection %s to (%s or %s)',
+                prev_elt.endpos, pathpart.startpos, pathpart.endpos)
+    if samepos(prev_elt.endpos, pathpart.startpos)
+      ordered << pathpart
       true
-    elsif samepos(prev_elt.endpos, glob.endpos)
-      ordered << glob.reverse
+    elsif samepos(prev_elt.endpos, pathpart.endpos)
+      ordered << pathpart.reverse
       true
     else
       false

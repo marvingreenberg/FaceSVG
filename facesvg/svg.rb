@@ -18,7 +18,7 @@ module FaceSVG
       def *(scalar); Vn.new(map { |c| c * scalar }); end
       def +(v2); Vn.new(zip(v2).map { |c, v| c + v }); end
       def -(v2); Vn.new(zip(v2).map { |c, v| c - v }); end
-      def %(v2); zip(v2).map { |c, v| c * v }.reduce(:+); end
+      def dot(v2); zip(v2).map { |c, v| c * v }.reduce(:+); end
       def abs(); map { |c| c * c }.reduce(:+)**0.5; end
       def ==(v2); (self - v2).abs < 0.0005; end
       def inspect(); '(' + map { |c| FMT % c }.join(',') + ')'; end
@@ -33,30 +33,30 @@ module FaceSVG
     class SVGArc
       # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
       # with accurate arc information
-      def initialize(xform, arcglob)
-        @glob = arcglob
-        @crv = @glob.crv
+      # Note, now all paths are transformed to z=0. So start using 2d
+      def initialize(arcpathpart)
+        xf = arcpathpart.xform
         # Ensure the edges are ordered as a path
-
-        @centerxy = V2d(@crv.center.transform(xform))
-        @startxy = V2d(@glob.startpos.transform(xform))
-        @endxy = V2d(@glob.endpos.transform(xform))
+        @radius = arcpathpart.crv.radius
+        @centerxy = SVG.V2d(arcpathpart.crv.center.transform(xf))
+        @startxy = SVG.V2d(arcpathpart.startpos.transform(xf))
+        @endxy = SVG.V2d(arcpathpart.endpos.transform(xf))
+        @start_angle = arcpathpart.crv.start_angle
+        @end_angle = arcpathpart.crv.end_angle
+        @xaxis2d = SVG.V2d(arcpathpart.crv.xaxis)
+        @yaxis2d = SVG.V2d(arcpathpart.crv.yaxis)
 
         ellipse_parameters()
         FaceSVG.dbg("Defining SVGArc start, end, center '%s' '%s' '%s'",
                     @startxy, @endxy, @centerxy)
       end
 
-      attr_reader :startxy
-      attr_reader :midxy
-      attr_reader :endxy
-
       # https://gamedev.stackexchange.com/questions/45412/
       #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
 
       # cw in svg coordinate space, +y is down
       def cw_normal(v0)
-        V2d(-v0.y, v0.x)
+        SVG.V2d(-v0.y, v0.x)
       end
 
       def sweep()
@@ -68,23 +68,20 @@ module FaceSVG
         c_to_e.dot(cw_normal(c_to_s)) > 0 ? '1' : '0'
       end
 
-      # curve has curve.center, .radius, .xaxis, .yaxis,
-      # .start_angle, .end_angle, see Sketchup API
-      # Note, now all paths are transformed to z=0. So start using 2d
       # https://en.wikipedia.org/wiki/Ellipse  See Ellipse as an affine image,
       # specifically cot(2t) = ((f1 * f1) - (f2 * f2)) / 2( f1 * f2 )
       # cot is just 1/tan, so...
       def ellipse_parameters
-        # circle, axes are orthogonal, same length (compared subject to Skecthup "tolerance")
-        if ((@crv.xaxis dot @crv.yaxis) == 0 and
-            (@crv.xaxis.length == @crv.yaxis.length))
-          @vx = V2d(@crv.xaxis)
-          @vy = V2d(@crv.yaxis)
-          @rx = @ry = @crv.radius
+        # circle, axes are orthogonal, same length
+        if ((@xaxis2d.dot @yaxis2d) == 0 and
+            (@xaxis2d.abs - @yaxis2d.abs < 0.05))
+          @vx = @xaxis2d
+          @vy = @yaxis2d
+          @rx = @ry = @radius
         else
-          f1 = V2d(@crv.xaxis)
-          f2 = V2d(@crv.yaxis)
-          vertex_angle1 = 0.5 * Math.atan2(((f1 dot f2) * 2), ((f1 dot f1) - (f2 dot f2)))
+          f1 = @xaxis2d
+          f2 = @yaxis2d
+          vertex_angle1 = 0.5 * Math.atan2(((f1.dot f2) * 2), ((f1.dot f1) - (f2.dot f2)))
           # Get the two vertices "x" and "y"
           @vx = ellipseXY_at_angle(vertex_angle1)
           @vy = ellipseXY_at_angle(vertex_angle1 + Math::PI/2)
@@ -96,17 +93,16 @@ module FaceSVG
         @xrot = (@vx.x == 0) ? 90 : Math.atan(@vx.y / @vx.x)
         @xrotdeg = @xrot.radians # converted from radians
 
-        @midxy = nil
-        midangle = (@crv.end_angle + @crv.start_angle)/2.0
+        midangle = (@end_angle + @start_angle)/2.0
         @midxy = ellipseXY_at_angle(midangle, absolute: true)
 
         # Draw large arcs as two arcs, instead of using flag, to handle closed path case
-        @largearc = (@crv.end_angle - @crv.start_angle) > Math::PI
+        @largearc = (@end_angle - @start_angle) > Math::PI
       end
 
       def ellipseXY_at_angle(ang, absolute: false)
         # Return point on ellipse at angle, relative to center.  If absolute, add center
-        p = V2d(@crv.xaxis) * Math.cos(ang) + V2d(@crv.yaxis)*Math.sin(ang)
+        p = @xaxis2d * Math.cos(ang) + @yaxis2d * Math.sin(ang)
         p = p + @centerxy if absolute
         p
       end
@@ -117,8 +113,8 @@ module FaceSVG
       def svgdata(prev)
         sweep_fl = sweep()
         FaceSVG.dbg('Center %s vx %s vy %s Orig start,end angle %s,%s',
-                    @centerxy, @vx, @vy, @crv.start_angle.radians,
-                    @crv.end_angle.radians)
+                    @centerxy, @vx, @vy, @start_angle.radians,
+                    @end_angle.radians)
 
         FaceSVG.dbg('Move to %s', @startxy) if prev.nil?
         FaceSVG.dbg('Arc to mid %s', @midxy) if @largearc
@@ -126,7 +122,7 @@ module FaceSVG
 
         # If first path (prev is nil) output "move",
         # Then draw arc to end, with arc to midpoint if "largarc"
-        ((prev.nil? ? format("M #{FMT} #{FMT}", @startxy.x, startxy.y) : '') +
+        ((prev.nil? ? format("M #{FMT} #{FMT}", @startxy.x, @startxy.y) : '') +
           (@largearc ?
             format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
             : '') +
@@ -136,13 +132,11 @@ module FaceSVG
 
     class SVGSegment
       # Edge is a single line segment with a start and end x,y
-      def initialize(xform, edgeglob)
-        @glob = edgeglob
-        @startxy = V2d(@glob.startpos.transform(xform))
-        @endxy = V2d(@glob.endpos.transform(xform))
+      def initialize(edgepathpart)
+        xf = edgepathpart.xform
+        @startxy = SVG.V2d(edgepathpart.startpos.transform(xf))
+        @endxy = SVG.V2d(edgepathpart.endpos.transform(xf))
       end
-      attr_reader :startxy
-      attr_reader :endxy
 
       def svgdata(prev)
         # If first path (prev is nil) output "move", rest just line draw
@@ -198,9 +192,9 @@ module FaceSVG
       # * +stroke+ - rgb for path stroke
       # * +stroke_width+ - pixel width for path stroke
       # * +path_type+ - "exterior" or "interior" or "edge???"
-      # * +cut_depth+ - depth in inches? for cutter head.  Unclear how this should be set.
-      def path(data, fill: nil, stroke: nil, stroke_width: nil, path_type: 'exterior',
-               vector_effect: 'non-scaling-stroke', cut_depth: '0.0125')
+      # * +cut_depth+ - depth in inches? for cutter head.
+      def mkpath(data, fill: nil, stroke: nil, stroke_width: nil, path_type: 'exterior',
+                 vector_effect: 'non-scaling-stroke', cut_depth: '0.0125')
         # yet another hash syntax, since keys are not symbols
         p = Node
             .new('path',
@@ -221,29 +215,27 @@ module FaceSVG
         @root.write(file)
       end
 
-      def addpaths(face, surface)
+      def addpaths(xf, face, surface)
         # Only do outer loop for pocket faces
         if face.material == POCKET
           paths = [face.outer_loop]
-          depth = FaceSVG.face_offset(face, surface)
+          cut_depth = FaceSVG.face_offset(face, surface)
           profile_kind = PK_POCKET
         else
           profile_kind = nil # set for each loop on face
           paths = face.loops
-          depth = CFG.cut_depth
+          cut_depth = CFG.cut_depth
         end
 
         paths.each do |loop|
           profile_kind = profile_kind || (loop == face.outer_loop) ? PK_OUTER : PK_INNER
-          FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, depth)
+          FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, cut_depth)
           # regroup edges so arc edges are grouped with metadata, all ordered end to start
           curves = [] # Keep track of processed arcs
-          pathparts = loop.edges.map { |edge|
-            Arc.create(curves, edge) || Line.create(edge)
-          }.reject(&:nil?)
-          pathparts = FaceSVG.reorder(pathparts)
-          svgloop = Loop.create(pathparts, profile_kind, depth)
-          svg.path(svgloop.svgdata, svgloop.attributes)
+          pathparts = loop.edges.map { |edge| PathPart.create(xf, curves, edge) }
+          pathparts = FaceSVG.reorder(pathparts.reject(&:nil?))
+          svgloop = Loop.create(pathparts, profile_kind, cut_depth)
+          mkpath(svgloop.svgdata, svgloop.attributes)
         end
       end
     end
@@ -287,27 +279,27 @@ module FaceSVG
     end
 
     class Loop
-      # class Loop factory method.  See "Globs" in layout.rb, basically
+      # class Loop factory method.  See Arcs and Lines in reorder.rb, basically
       # to aggregate edges with arc metadata, and deal with ordering
-      def self.create(xform, glob_arr, kind, depth)
+      def self.create(pathpart_arr, kind, cut_depth)
         Loop.new(
-          glob_arr.map { |glob|
-            glob.isArc() ? SVGArc.new(xform, glob) : SVGSegment.new(xform, glob)
-          }, kind, depth)
+          pathpart_arr.map { |part|
+            part.crv.nil? ? SVGSegment.new(part) : SVGArc.new(part)
+          }, kind, cut_depth)
       end
 
       # Oh, since @attributes are used to pass arguments, they have to
       #  use this other hash syntax...
-      def initialize(pathparts, kind, depth)
+      def initialize(pathparts, kind, cut_depth)
         # pathparts: array of SVGArcs and SVGSegments
         @pathparts = pathparts
         if kind == PK_OUTER
-          @attributes = { path_type: kind, depth: depth, fill: 'rgb(0,0,0)' }
+          @attributes = { path_type: kind, cut_depth: cut_depth, fill: 'rgb(0,0,0)' }
         elsif kind == PK_POCKET
-          @attributes = { path_type: kind, depth: depth, fill: 'rgb(128,128,128)',
+          @attributes = { path_type: kind, cut_depth: cut_depth, fill: 'rgb(128,128,128)',
             stroke_width: '2', stroke: 'rgb(128,128,128)' }
         elsif kind == PK_INNER
-          @attributes = { path_type: kind, depth: depth, fill: 'rgb(255,255,255)',
+          @attributes = { path_type: kind, cut_depth: cut_depth, fill: 'rgb(255,255,255)',
             stroke_width: '2', stroke: 'rgb(0,0,0)' }
         else # PK_GUIDE, let's not fill, could be problematic
           @attributes = { path_type: kind, stroke_width: '2', stroke: 'rgb(20,110,255)' }
