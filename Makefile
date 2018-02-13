@@ -1,8 +1,12 @@
-plugin: check
+plugin:
 	rm facesvg.rbz; zip -r facesvg.rbz facesvg.rb facesvg/*rb
-	# CONVENIENCE ONLY
-	cp -f facesvg/*rb \
-	   ~/'Library/Application Support/SketchUp 2017/SketchUp/Plugins/facesvg/'
 
 check:
 	PATH=$$PATH:/usr/local/bin rubocop --auto-correct facesvg.rb facesvg
+
+chkgit:
+	# Error indicate uncommited changes
+	git diff-index --quiet  HEAD --
+
+release: chkgit plugin
+	  git ci -m 'Update rbz release' facesvg.rbz
