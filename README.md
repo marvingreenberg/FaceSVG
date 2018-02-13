@@ -4,7 +4,7 @@ This is a plugin to generate an SVG outline from selected faces.  The plugin add
 
 Go to https://github.com/marvingreenberg/FaceSVG/releases for download links for the ruby '.rbz' plugin.
 
-**If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via** [paypal.me/marvingreenberg/20](https://paypal.me/marvingreenberg/18).  (You know, one roll of shaper tape) If enough people are supporting this I'll make an effort to improve this actively.
+**If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via** [paypal.me/marvingreenberg/18](https://paypal.me/marvingreenberg/18).  (You know, one roll of shaper tape) If enough people are supporting this I'll make an effort to improve this actively.
 
 See the YouTube video to see its operation.  My plan is to iterate through various improvements quickly.  My goal is to provide useful functionality for generating customized SVG output directly from Sketchup without requiring other software tools.  My near term goal is a slight improvment to allow changes, from within Sketchup, to layed-out edges to be reflected in the output SVG.  I also want to add support for Shaper Origin "pocket cuts".   I'm also very open to suggestions from the user community to improve or add features.
 
