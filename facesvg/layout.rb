@@ -81,7 +81,7 @@ module FaceSVG
       def initialize(elements)
         super()
         concat(elements)
-        # puts 'Transform path %s' % [self]
+        #puts 'Transform path %s' % [self]
       end
       #  Hold the edges that make up an arc as edge array
 
@@ -122,7 +122,7 @@ module FaceSVG
         super()
         concat(elements)
         @reverse = false
-        # puts 'Transform path %s' % [self]
+        #puts 'Transform path %s' % [self]
       end
 
       def inspect
@@ -205,7 +205,7 @@ module FaceSVG
 
       attr_writer :layout_xf
       def dupcrv(curves, pathgrp, edge)
-        return nil unless edge.curve.is_a? Sketchup::ArcCurve
+        return nil if edge.curve.nil? # non-nil, must be Sketchup::ArcCurve
         # FIRST edge in an arc retrieves arc metadata and regenerates ALL arc edges,
         # Subsequent arc edges ignored, only returning nil
         ell_orig = edge.curve
@@ -226,7 +226,7 @@ module FaceSVG
 
       def dupedge(pathgrp, edge)
         # exit if edge is part of curve
-        return nil if edge.curve.is_a? Sketchup::ArcCurve
+        return nil unless edge.curve.nil?
         line_edges = pathgrp.entities.add_edges([edge.start.position, edge.end.position])
         EdgeGlob.new(line_edges)
       end
@@ -243,7 +243,7 @@ module FaceSVG
       end
 
       def transform(edges, outer: false)
-        # puts 'Transform path of %s edges' % [edges.size]
+        #puts 'Transform path of %s edges' % [edges.size]
         curves = [] # curves that have been processed (many edges in same curve)
         # Create yet another group, for each path on the face
         pathgrp = @su_facegrp.entities.add_group
@@ -263,7 +263,7 @@ module FaceSVG
         # Find the bounds of the loop after transform
         updatebounds(dupedges) if outer
 
-        # puts 'Reordering %s edges after transform' % [dupedges.flatten.size]
+        #puts 'Reordering %s edges after transform' % [dupedges.flatten.size]
         FaceSVG::Layout.reorder(dupedges)
       end
     end
