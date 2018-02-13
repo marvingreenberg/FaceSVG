@@ -19,4 +19,4 @@ The output SVG file should be compatible for use with the Shaper Origin handheld
 1. In Sketchup, Window->Extension Manager brings up the extension manager
    1. **If you previously installed the plugin from Extension Warehouse, make sure you uninstall it first, from Extension Manager *Manage* tab**
    1. Click the *Install Extension* and select the ".rbz" that you downloaded
-t.
+   1. Restart Sketchup.  *Sketchup is pretty inconsistent about updating already loaded plugins*
