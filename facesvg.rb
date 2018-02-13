@@ -13,7 +13,7 @@ module FaceSVG
   extension.description = lang.GetString(
     'Tool to export faces as SVG.  Designed to support Shaper Origin.'
   )
-  extension.version     = '1.0'
+  extension.version     = '1.0.1'
   extension.copyright   = 'Marvin Greenberg, 2018'
   Sketchup.register_extension(extension, true)
 end
