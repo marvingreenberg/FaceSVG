@@ -11,3 +11,12 @@ See the YouTube video to see its operation.  My plan is to iterate through vario
 [![FaceSVG Video](https://github.com/marvingreenberg/FaceSVG/blob/v1.0.1/doc/FaceSVG_YouTube.png)](https://www.youtube.com/watch?v=yBeFX-peRTg)
 
 The output SVG file should be compatible for use with the Shaper Origin handheld CNC router and with other applications requiring SVG output.
+
+## Installation
+
+1. Go to [Releases](https://github.com/marvingreenberg/FaceSVG/releases)
+1. Select the desired ".rbz" plugin download, and click **Download** on the linked page
+1. In Sketchup, Window->Extension Manager brings up the extension manager
+   1. **If you previously installed the plugin from Extension Warehouse, make sure you uninstall it first, from Extension Manager *Manage* tab**
+   1. Click the *Install Extension* and select the ".rbz" that you downloaded
+t.
