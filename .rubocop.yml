@@ -14,10 +14,10 @@ Metrics/ParameterLists:
 
 Metrics/AbcSize:
   Max: 60
-  
+
 Naming/FileName:
   Enabled: false
-  
+
 Naming/MethodName:
   Enabled: false
 
@@ -40,9 +40,12 @@ Style/EmptyElse:
 Layout/SpaceAroundOperators:
   Enabled: false
 
+Layout/LeadingCommentSpace:
+  Enabled: false
+
 Layout/MultilineHashBraceLayout:
   Enabled: false
-  
+
 Style/SelfAssignment:
   Enabled: false
 
@@ -57,7 +60,7 @@ Style/Documentation:
 
 Style/ParallelAssignment:
   Enabled: false
-  
+
 Layout/AlignHash:
   Enabled: false
 
@@ -96,7 +99,7 @@ Style/DefWithParentheses:
 
 Style/Not:
    Enabled: false
-   
+
 Style/AndOr:
   Enabled: false
 
