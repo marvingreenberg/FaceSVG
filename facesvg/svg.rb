@@ -92,7 +92,7 @@ module FaceSVG
           @ry = @vy.abs
         end
         # Angle of "x" vertex vector
-        @xrotdeg = (@vx.x == 0) ? 90 : Math.atan2(@vx.y , @vx.x).radians.modulo 360
+        @xrotdeg = (@vx.x == 0) ? 90 : Math.atan2(@vx.y, @vx.x).radians.modulo(360.0)
 
         @midxy = nil
         midangle = (@crv.end_angle + @crv.start_angle)/2.0
