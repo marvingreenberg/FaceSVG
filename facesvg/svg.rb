@@ -7,7 +7,7 @@ module FaceSVG
   end
 
   module SVG
-    FMT = '%0.3f'.freeze
+    FMT = '%0.4f'.freeze
 
     class Vn < Array
       # A simple vector supporting scalar multiply and vector add, % dot product, magnitude
