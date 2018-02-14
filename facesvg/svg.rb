@@ -157,7 +157,9 @@ module FaceSVG
         @minx, @miny, @maxx, @maxy = viewport
         @width = @maxx - @minx
         @height = @maxy - @miny
-        @unit = unit
+        # TODO: fix units somewhere globally
+        # for now just use 'in' since that's what sketchup does.
+        @unit = 'in'
 
         @root = Node
                 .new('svg',

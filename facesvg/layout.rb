@@ -39,7 +39,7 @@ module FaceSVG
       ################
       def makesvg(name, index, *grps)
         bnds2d = Bounds2d.new.update(*grps)
-        viewport = [0.0, 0.0, bnds2d.maxx-bnds2d.minx, bnds2d.maxy-bnds2d.miny]
+        viewport = [bnds2d.minx, bnds2d.miny, bnds2d.maxx, bnds2d.maxy]
         fname = format(name, index)
         svg = SVG::Canvas.new(fname, viewport, CFG.units, CFG.facesvg_version)
         svg.title(format('%s cut profile %s', @title, index))
