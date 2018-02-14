@@ -32,7 +32,7 @@ module FaceSVG
   @@spacing = 0.5 # 1/2" spacing
   @@sheetwidth = 24.0
   @@sheetheight = 24.0 # unused
-  @@version = '1.0.1'    # FaceSVG::extension.version inaccessible, inexplicably
+  @@version = '1.0.2' # FaceSVG::extension.version inaccessible, inexplicably
   @@default_dir = nil
 
   extend self # instead of 'def ' everywhere
