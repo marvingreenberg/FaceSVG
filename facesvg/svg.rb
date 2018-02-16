@@ -28,9 +28,10 @@ module FaceSVG
     end
 
     # Sketchup sometime has crazy end angles, like 4*PI, with a start of 0
-    # enforce end-start angle is no greater than 2*PI
+    # enforce end-start angle is no greater than 2*PI beyond start_angle
     def normalize_end(start_angle, end_angle)
-      start_angle + (end_angle - start_angle).modulo(2*Math::PI)
+      (start_angle + Math::PI +
+       (end_angle - Math::PI - start_angle).modulo(2*Math::PI))
     end
 
     # Sketchup is a mess - it draws curves and keeps information about them
@@ -53,8 +54,8 @@ module FaceSVG
         @yaxis2d = SVG.V2d(arcpathpart.crv.yaxis)
 
         ellipse_parameters()
-        FaceSVG.dbg("Defining SVGArc start, end, center '%s' '%s' '%s'",
-                    @startxy, @endxy, @centerxy)
+        FaceSVG.dbg("Defining SVGArc start, end, center, radius '%s' '%s' '%s' '%s' (ang %s %s)",
+                    @startxy, @endxy, @centerxy, @radius, @start_angle.radians, @end_angle.radians)
       end
 
       # https://gamedev.stackexchange.com/questions/45412/
