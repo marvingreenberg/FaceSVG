@@ -27,6 +27,12 @@ module FaceSVG
       def y; self[1]; end
     end
 
+    # Sketchup sometime has crazy end angles, like 4*PI, with a start of 0
+    # enforce end-start angle is no greater than 2*PI
+    def normalize_end(start_angle, end_angle)
+      start_angle + (end_angle - start_angle).modulo(2*Math::PI)
+    end
+
     # Sketchup is a mess - it draws curves and keeps information about them
     #  but treats everything as edges
     # Create class to aggregate ArcCurve with its associated Edges
@@ -42,7 +48,7 @@ module FaceSVG
         @startxy = SVG.V2d(arcpathpart.startpos.transform(xf))
         @endxy = SVG.V2d(arcpathpart.endpos.transform(xf))
         @start_angle = arcpathpart.crv.start_angle
-        @end_angle = arcpathpart.crv.end_angle
+        @end_angle = SVG.normalize_end(@start_angle, arcpathpart.crv.end_angle)
         @xaxis2d = SVG.V2d(arcpathpart.crv.xaxis)
         @yaxis2d = SVG.V2d(arcpathpart.crv.yaxis)
 
@@ -149,10 +155,10 @@ module FaceSVG
     end
 
     BKGBOX = "new #{FMT} #{FMT} #{FMT} #{FMT}".freeze
-    VIEWBOX = "new #{FMT} #{FMT} #{FMT} #{FMT}".freeze
+    VIEWBOX = "#{FMT} #{FMT} #{FMT} #{FMT}".freeze
     # Class used to collect the output paths to be emitted as SVG
     class Canvas
-      def initialize(fname, viewport, unit, version)
+      def initialize(fname, viewport, _unit)
         @filename = fname
         @minx, @miny, @maxx, @maxy = viewport
         @width = @maxx - @minx
@@ -174,7 +180,7 @@ module FaceSVG
                        'xmlns' => 'http://www.w3.org/2000/svg',
                        'xmlns:xlink' => 'http://www.w3.org/1999/xlink',
                        'xmlns:shaper' => 'http://www.shapertools.com/namespaces/shaper',
-                       'shaper:sketchupaddin' => version # plugin version
+                       'shaper:sketchupaddin' => FaceSVG::VERSION # plugin version
                      })
       end
 
@@ -196,15 +202,16 @@ module FaceSVG
       # * +path_type+ - "exterior" or "interior" or "edge???"
       # * +cut_depth+ - depth in inches? for cutter head.
       def mkpath(data, fill: nil, stroke: nil, stroke_width: nil, path_type: 'exterior',
-                 vector_effect: 'non-scaling-stroke', cut_depth: '0.0125')
-        # yet another hash syntax, since keys are not symbols
+                 vector_effect: 'non-scaling-stroke', cut_depth: '0.0125', zlayer: 0.0)
+
         p = Node
             .new('path',
                  attrs: {
                    'd'=> data,
                    'vector-effect' => vector_effect,
                    'shaper:cutDepth' => cut_depth,
-                   'shaper:pathType' => path_type })
+                   'shaper:pathType' => path_type,
+                   'zlayer' => zlayer })
         p.add_attr('fill', fill) if fill
         p.add_attr('stroke', stroke) if stroke
         p.add_attr('stroke-width', stroke_width) if stroke_width
@@ -220,17 +227,17 @@ module FaceSVG
       def addpaths(xf, face, surface)
         # Only do outer loop for pocket faces
         if face.material == POCKET
-          paths = [face.outer_loop]
+          paths = [[face.outer_loop, PK_POCKET]]
           cut_depth = FaceSVG.face_offset(face, surface)
-          profile_kind = PK_POCKET
         else
-          profile_kind = nil # set for each loop on face
-          paths = face.loops
+          # Make list of all loops with outer_loop marked as exterior
+          paths = face.loops.map { |l|
+            [l, (l == face.outer_loop) ? PK_EXTERIOR : PK_INTERIOR]
+          }
           cut_depth = CFG.cut_depth
         end
 
-        paths.each do |loop|
-          profile_kind = profile_kind || (loop == face.outer_loop) ? PK_OUTER : PK_INNER
+        paths.each do |loop, profile_kind|
           FaceSVG.dbg('Profile, %s edges, %s %s', loop.edges.size, profile_kind, cut_depth)
           # regroup edges so arc edges are grouped with metadata, all ordered end to start
           curves = [] # Keep track of processed arcs
@@ -244,6 +251,9 @@ module FaceSVG
 
     class Node
       # Simple Node object to construct SVG XML output (no built in support for XML in ruby)
+      # Only the paths need to be sorted,  so initialize with a 'z' value.
+      # Everything is transformed to z=0 OR below.  So make exterior paths 2.0,
+      # interior 1.0, and pocket cuts actual depth (negative offsets)
 
       def initialize(name, attrs: nil, text: nil)
         @name = name
@@ -253,10 +263,18 @@ module FaceSVG
         @text = text
         # node children
         @children = []
+        @zlayer = attrs && attrs.delete('zlayer') || 0.0
+      end
+
+      attr_reader :zlayer
+
+      def <=>(other)
+        -(zlayer <=> other.zlayer) # minus, since bigger are first
       end
 
       def add_attr(name, value); @attrs[name] = value; end
       def add_text(text); @text = text; end
+
       def add_child(node); @children << node; end
 
       def write(file)
@@ -267,7 +285,7 @@ module FaceSVG
         else
           file.write('>')
           file.write(@text) if @text
-          @children.each { |c| c.write(file) }
+          @children.sort.each { |c| c.write(file) }
           file.write("\n</#{@name}>")
         end
       end
@@ -290,21 +308,31 @@ module FaceSVG
           }, kind, cut_depth)
       end
 
-      # Oh, since @attributes are used to pass arguments, they have to
-      #  use this other hash syntax...
+      def white; 'rgb(255,255,255)'; end
+      def black; 'rgb(0,0,0)'; end
+      # blue extracted from example Shaper.png
+      def blue; 'rgb(20,110,255)'; end
+      def gray(depth)
+        # Scale the "grayness" based on depth.  Supposedly SO will
+        # recognize from 60,60,60 to 180,180,180 as gray (maybe more?)
+        gray = 70 + (100.0*depth/CFG.pocket_max).to_int
+        "rgb(#{gray},#{gray},#{gray})"
+      end
+
       def initialize(pathparts, kind, cut_depth)
         # pathparts: array of SVGArcs and SVGSegments
         @pathparts = pathparts
-        if kind == PK_OUTER
-          @attributes = { path_type: kind, cut_depth: cut_depth, fill: 'rgb(0,0,0)' }
+        # SVG paths have to be ordered to be displayed correctly, add a pseudo-zlayer
+        if kind == PK_EXTERIOR
+          @attributes = { zlayer: 2.0, path_type: kind, cut_depth: cut_depth, fill: black }
+        elsif kind == PK_INTERIOR
+          @attributes = { zlayer: 1.0, path_type: kind, cut_depth: cut_depth, fill: white,
+            stroke_width: '2', stroke: black }
         elsif kind == PK_POCKET
-          @attributes = { path_type: kind, cut_depth: cut_depth, fill: 'rgb(128,128,128)',
-            stroke_width: '2', stroke: 'rgb(128,128,128)' }
-        elsif kind == PK_INNER
-          @attributes = { path_type: kind, cut_depth: cut_depth, fill: 'rgb(255,255,255)',
-            stroke_width: '2', stroke: 'rgb(0,0,0)' }
+          @attributes = { zlayer: -cut_depth, path_type: kind, cut_depth: cut_depth, fill: gray(cut_depth),
+            stroke_width: '2', stroke: gray(cut_depth) }
         else # PK_GUIDE, let's not fill, could be problematic
-          @attributes = { path_type: kind, stroke_width: '2', stroke: 'rgb(20,110,255)' }
+          @attributes = { path_type: kind, stroke_width: '2', stroke: blue }
         end
       end
 

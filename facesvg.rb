@@ -6,6 +6,8 @@ require 'LangHandler'
 # TODO: support metric output mm,cm
 
 module FaceSVG
+  VERSION = '1.1.0'.freeze
+
   lang = LanguageHandler.new('facesvg')
 
   extension = SketchupExtension.new('Face SVG Export', 'facesvg/main')
@@ -13,7 +15,7 @@ module FaceSVG
   extension.description = lang.GetString(
     'Tool to export faces as SVG.  Designed to support Shaper Origin.'
   )
-  extension.version     = '1.1.0'
+  extension.version     = VERSION
   extension.copyright   = 'Marvin Greenberg, 2018'
   Sketchup.register_extension(extension, true)
 end

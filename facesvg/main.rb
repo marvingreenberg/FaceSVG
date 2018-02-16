@@ -25,10 +25,10 @@ Sketchup.require('facesvg/su_util')
 # for way to simply arrange the rectangles efficiently in layout, maybe overkill.
 
 module FaceSVG
+  VERSION = Sketchup.extensions.find { |e| e.name == 'Face SVG Export' }.version
   # defaults
   class Configuration
     def initialize()
-      @facesvg_version = '1.1.0' # FaceSVG::extension.version inaccessible, inexplicably
       @default_dir = nil
       @svg_output = SINGLE_FILE
       @units = FaceSVG.su_model_unit

@@ -18,7 +18,7 @@ module FaceSVG
   # Mark to identify copied face
   MARKER = mk_material('facesvg_marker', 'blue')
   SURFACE = mk_material('facesvg_surface', 'black')
-  POCKET = mk_material('facesvg_marker', 'gray')
+  POCKET = mk_material('facesvg_pocket', 'gray')
 
   def su_model_unit()
     i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
@@ -74,45 +74,36 @@ module FaceSVG
     }
   end
 
-  class Bounds2d
+  class Bounds
+    # Convenience wrapper around a bounding box, accumulate the bounds
+    #  of related faces and create a transform to move highest face
+    #  to z=0, and min x,y to 0,0
     def initialize()
-      @minx = @miny = 1e100
-      @maxx = @maxy = -1e100
+      @bounds = Geom::BoundingBox.new
     end
-    attr_reader :minx
-    attr_reader :miny
-    attr_reader :maxx
-    attr_reader :maxy
-
     def to_s
-      format('Bounds2d(min %s,%s max %s,%s)', @minx, @miny, @maxx, @maxy)
-    end
-
-    def min_at_origin?
-      @minx == 0.0 && @miny == 0.0
-    end
-
-    def shift_transform
-      # Return a transformation to move min to 0,0, and shift bounds accordingly
-      @maxy -= @miny
-      @maxx -= @minx
-      xf = Geom::Transformation
-           .new([1.0, 0.0, 0.0, 0.0,
-                 0.0, 1.0, 0.0, 0.0,
-                 0.0, 0.0, 1.0, 0.0,
-                 -@minx, -@miny, 0.0, 1.0])
-      @miny = @minx = 0.0
-      xf
+      format('Bounds(min %s max %s)', @bounds.min, @bounds.max)
     end
 
     def update(*e_ary)
       e_ary.each do |e|
-        @minx = [@minx, e.bounds.min.x].min
-        @miny = [@miny, e.bounds.min.y].min
-        @maxx = [@maxx, e.bounds.max.x].max
-        @maxy = [@maxy, e.bounds.max.y].max
+        @bounds.add(e.bounds)
       end
       self
+    end
+
+    def width; @bounds.width; end
+    def height; @bounds.height; end
+    def min; @bounds.min; end
+    def max; @bounds.max; end
+
+    def shift_transform
+      # Return a transformation to move min to 0,0, and shift bounds accordingly
+      Geom::Transformation
+        .new([1.0, 0.0, 0.0, 0.0,
+              0.0, 1.0, 0.0, 0.0,
+              0.0, 0.0, 1.0, 0.0,
+              -@bounds.min.x, -@bounds.min.y, -@bounds.max.z, 1.0])
     end
   end
 
@@ -139,18 +130,20 @@ module FaceSVG
     # Each face (or set of connected faces) is copied in its own group.
     f_ary.each do |f|
       next unless marked?.call(f)
-      # Transform and rotate into z=0 plane, at ORIGIN
-      xf = Geom::Transformation.new(ORIGIN, f.normal).inverse
+
       tmp = Sketchup.active_model.entities.add_group(f.all_connected)
+      # Make xf to rotate selected face parallel to z=0, move all to
+      #   quadrant to avoid itersecting existing geometry
+      xf = Geom::Transformation.new(tmp.bounds.max, f.normal).inverse
+      # Duplicate into new transformed group
       new_grp = Sketchup.active_model.entities.add_instance(tmp.definition, xf)
-      # explode the new entities, transformed to the origin
+      # explode, creates the new entities, selecting all resulting faces, edges.
       new_entities = new_grp.explode.select { |e|
         e.is_a?(Sketchup::Face) || e.is_a?(Sketchup::Edge)
       }
 
       # unmark before explode tmp, face entityIDs change upon explode
       unmark(orig_materials, *f.all_connected)
-      tmp.explode
 
       new_faces = new_entities.grep(Sketchup::Face)
       # Find originally selected (copied) face, could be >1, use first
@@ -160,7 +153,7 @@ module FaceSVG
                       .grep(Sketchup::Face).select(&related_faces?(face))
                       .each(&annotate_related_faces(face))
 
-      bnds = Bounds2d.new.update(*related_faces)
+      bnds = Bounds.new.update(*related_faces)
       # "ORIGIN" may still have parts of faces in negative, maybe
 
       # Delete copied faces, that were not originally selected and not "related"
@@ -168,10 +161,11 @@ module FaceSVG
       Sketchup.active_model.entities
               .erase_entities(new_entities - related_faces_and_edges)
 
-      unless bnds.min_at_origin?
-        Sketchup.active_model.entities
-                .transform_entities(bnds.shift_transform, related_faces_and_edges)
-      end
+      Sketchup.active_model.entities
+              .transform_entities(bnds.shift_transform, related_faces_and_edges)
+
+      # Finally, explode the original face, back to as it was
+      tmp.explode
 
       yield related_faces_and_edges, bnds
     end

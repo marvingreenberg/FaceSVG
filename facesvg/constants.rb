@@ -15,8 +15,8 @@ module FaceSVG
   SHAPER = 'shaper'.freeze
   PROFILE_KIND = 'profilekind'.freeze
   PROFILE_DEPTH = 'profiledepth'.freeze
-  PK_INNER = 'inner'.freeze
-  PK_OUTER = 'outer'.freeze
+  PK_INTERIOR = 'interior'.freeze
+  PK_EXTERIOR = 'exterior'.freeze
   PK_POCKET = 'pocket'.freeze
   PK_GUIDE = 'guide'.freeze # TODO
 

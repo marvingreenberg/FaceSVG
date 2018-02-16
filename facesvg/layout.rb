@@ -38,10 +38,10 @@ module FaceSVG
 
       ################
       def makesvg(name, index, *grps)
-        bnds2d = Bounds2d.new.update(*grps)
-        viewport = [bnds2d.minx, bnds2d.miny, bnds2d.maxx, bnds2d.maxy]
+        bnds = Bounds.new.update(*grps)
+        viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
         fname = format(name, index)
-        svg = SVG::Canvas.new(fname, viewport, CFG.units, CFG.facesvg_version)
+        svg = SVG::Canvas.new(fname, viewport, CFG.units)
         svg.title(format('%s cut profile %s', @title, index))
         svg.desc(format('Shaper cut profile from Sketchup model %s', @title))
 
@@ -62,7 +62,7 @@ module FaceSVG
 
         if CFG.svg_output == MULTI_FILE
           # Multi file - generate multiple "svg::Canvas"
-          outpath = UI.select_directory(SVG_OUTPUT_DIRECTORY, CFG.default_dir)
+          outpath = UI.select_directory(title: SVG_OUTPUT_DIRECTORY, directory: CFG.default_dir)
           return false if outpath.nil?
           CFG.default_dir = outpath
           name = "#{@title}%s.svg"
@@ -114,20 +114,20 @@ module FaceSVG
       end
       ################
       def layout_facegrps(*su_faces)
-        FaceSVG.capture_faceprofiles(*su_faces) do |new_entities, bnds2d|
+        FaceSVG.capture_faceprofiles(*su_faces) do |new_entities, bnds|
           layout_xf = Geom::Transformation
-                      .new([@layoutx - bnds2d.minx, @layouty - bnds2d.miny, 0.0])
+                      .new([@layoutx, @layouty, 0.0])
           # explode, work around more weird behavior with Arcs?
           # Transform them and then add them back into a group
           Sketchup.active_model.entities.transform_entities(layout_xf, new_entities)
 
           newgrp = su_profilegrp.entities.add_group(new_entities)
-          FaceSVG.dbg('Face %s  layout x,y %s %s', bnds2d, @layoutx, @layoutx)
+          FaceSVG.dbg('Face %s  layout x,y %s %s', bnds, @layoutx, @layoutx)
           add_su_facegrp(newgrp)
 
-          @layoutx += CFG.layout_spacing + bnds2d.maxx - bnds2d.minx
+          @layoutx += CFG.layout_spacing + bnds.width
           # As each element is layed out horizontally, keep track of the tallest bit
-          @rowheight = [@rowheight, bnds2d.maxy - bnds2d.miny].max
+          @rowheight = [@rowheight, bnds.height].max
           if @layoutx > CFG.layout_width
             @layoutx = 0.0 + CFG.layout_spacing
             @layouty += @rowheight + CFG.layout_spacing

@@ -13,15 +13,15 @@ module FaceSVG
       format('%s %s->%s', self.class.name, startpos, endpos)
     end
     def self.create(xform, curves, edge)
-      if edge.curve
+      if edge.curve.is_a?(Sketchup::ArcCurve)
         # many edges are part of one arc, process once
         if curves.member?(edge.curve)
-          puts format('Edge %s %s (curve %s) already processed', edge.start.position, edge.end.position, edge.curve)
-          return nil
+          return nil # curve already processed
         end
         curves << edge.curve
         Arc.new(xform, edge)
       else
+        # Lines and "free hand" curves are just line segments
         Line.new(xform, edge)
       end
     end
@@ -34,8 +34,8 @@ module FaceSVG
     def initialize(xform, edge)
       @xform = xform
       @crv = edge.curve
-      @startpos = @crv.first_edge.start.position
-      @endpos = @crv.last_edge.end.position
+      @startpos = @crv.first_edge.start.position.transform(xform)
+      @endpos = @crv.last_edge.end.position.transform(xform)
       FaceSVG.dbg('Transform path %s', inspect)
     end
     include PathPart
@@ -78,8 +78,6 @@ module FaceSVG
   end
 
   def connected(ordered, prev_elt, pathpart)
-    FaceSVG.dbg('Test connection %s to (%s or %s)',
-                prev_elt.endpos, pathpart.startpos, pathpart.endpos)
     if samepos(prev_elt.endpos, pathpart.startpos)
       ordered << pathpart
       true
