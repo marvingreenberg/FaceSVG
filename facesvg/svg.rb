@@ -5,7 +5,7 @@ module FaceSVG
   module SVG
     extend self
 
-    FMT = '%0.3f'.freeze
+    FMT = '%0.4f'.freeze
 
     def V2d(*args)
       args = args[0].to_a if args.size == 1
@@ -34,7 +34,6 @@ module FaceSVG
       end_angle -= (2 * Math::PI) if end_angle > (2 * Math::PI)
       end_angle
     end
-
 
     # Sketchup is a mess - it draws curves and keeps information about them
     #  but treats everything as edges
