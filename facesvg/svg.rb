@@ -264,7 +264,8 @@ module FaceSVG
         @text = text
         # node children
         @children = []
-        @zlayer = attrs && attrs.delete('zlayer') || 0.0
+        # Default stuff ordered to top (10.0) -- desc, title, etc.
+        @zlayer = attrs && attrs.delete('zlayer') || 10.0
       end
 
       attr_reader :zlayer
