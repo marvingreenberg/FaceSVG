@@ -1,4 +1,5 @@
 Sketchup.require('facesvg/constants')
+Sketchup.require('facesvg/su_util')
 Sketchup.require('facesvg/reorder') # for reorder function and Line/Arc classes
 
 module FaceSVG
@@ -20,7 +21,7 @@ module FaceSVG
       def -(v2); Vn.new(zip(v2).map { |c, v| c - v }); end
       def dot(v2); zip(v2).map { |c, v| c * v }.reduce(:+); end
       def abs(); map { |c| c * c }.reduce(:+)**0.5; end
-      def ==(v2); (self - v2).abs < 0.0005; end
+      def ==(v2); FaceSVG.same((self - v2).abs, 0.0); end
       def inspect(); '(' + map { |c| FMT % c }.join(',') + ')'; end
       def to_s; inspect; end
       def x; self[0]; end
@@ -79,8 +80,7 @@ module FaceSVG
       # cot is just 1/tan, so...
       def ellipse_parameters
         # circle, axes are orthogonal, same length
-        if ((@xaxis2d.dot @yaxis2d) == 0 and
-            (@xaxis2d.abs - @yaxis2d.abs < 0.05))
+        if ((@xaxis2d.dot @yaxis2d) == 0 && FaceSVG.same(@xaxis2d.abs, @yaxis2d.abs))
           @vx = @xaxis2d
           @vy = @yaxis2d
           @rx = @ry = @radius
@@ -225,7 +225,7 @@ module FaceSVG
 
       def addpaths(xf, face, surface)
         # Only do outer loop for pocket faces
-        if face.material == POCKET
+        if face.material == FaceSVG.pocket
           paths = [[face.outer_loop, PK_POCKET]]
           cut_depth = FaceSVG.face_offset(face, surface)
         else

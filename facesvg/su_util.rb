@@ -1,24 +1,34 @@
+Sketchup.require('facesvg/constants')
+
 module FaceSVG
   extend self
+
+  def same(num0, num1)
+    (num0-num1).abs < TOLERANCE
+  end
+  # Compare two Point3d with tolerance
+  def samepos(pos1, pos2)
+    same((pos1 - pos2).length, 0.0)
+  end
 
   if ENV['FACESVG_DEBUG']
     def dbg(fmt, *args)
       puts format(fmt, *args)
     end
   else
-    def dbg(fmt, *args); end
+    def dbg(*args); end
   end
 
+  def marker; mk_material('svg_marker', 'blue'); end
+  def surface; mk_material('svg_surface', [0, 0, 0]); end
+  def pocket; mk_material('svg_pocket', [165, 165, 165]); end
+
   def mk_material(name, color)
-    m = (Sketchup::active_model.materials[name] ||
-      Sketchup::active_model.materials.add(name))
+    m = Sketchup::active_model.materials[name]
+    m = Sketchup::active_model.materials.add(name) if (m.nil? || !m.valid?)
     m.color = color
     m
   end
-  # Mark to identify copied face
-  MARKER = mk_material('facesvg_marker', 'blue')
-  SURFACE = mk_material('facesvg_surface', 'black')
-  POCKET = mk_material('facesvg_pocket', 'gray')
 
   def su_model_unit()
     i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
@@ -46,12 +56,12 @@ module FaceSVG
   def mark(saved_materials, *f_ary)
     f_ary.each do |f|
       saved_materials[f.entityID] = f.material
-      f.material = MARKER
+      f.material = FaceSVG.marker
     end
   end
 
   def marked?
-    proc { |f| f.is_a?(Sketchup::Face) && f.material == MARKER }
+    proc { |f| f.is_a?(Sketchup::Face) && f.material == FaceSVG.marker }
   end
 
   def unmark(saved_materials, *f_ary)
@@ -81,14 +91,8 @@ module FaceSVG
     def initialize()
       @bounds = Geom::BoundingBox.new
     end
-    def to_s
-      format('Bounds(min %s max %s)', @bounds.min, @bounds.max)
-    end
-
     def update(*e_ary)
-      e_ary.each do |e|
-        @bounds.add(e.bounds)
-      end
+      e_ary.each { |e| @bounds.add(e.bounds) }
       self
     end
 
@@ -96,6 +100,7 @@ module FaceSVG
     def height; @bounds.height; end
     def min; @bounds.min; end
     def max; @bounds.max; end
+    def to_s; format('Bounds(min %s max %s)', @bounds.min, @bounds.max); end
 
     def shift_transform
       # Return a transformation to move min to 0,0, and shift bounds accordingly
@@ -107,14 +112,15 @@ module FaceSVG
     end
   end
 
+  # At this point the faces are all parallel to z=0 plane
+  # Plane array a,b,c,d -> d is the height
   def annotate_related_faces(face)
+    # Find faces at same z as selected face
     proc { |r|
-      puts format('plane1 %s plane2 %s', face.plane.to_a, r.plane.to_a)
-      r.material = (face.plane == r.plane) ? SURFACE : POCKET
+      r.material = same(face.plane[3], r.plane[3]) ? FaceSVG.surface : FaceSVG.pocket
     }
   end
 
-  # Faces are coming from a selection so are all in same context
   # Want to copy all the connected faces (to keep arc edge metadata) and
   #  then delete all the faces that are "unrelated" to the selected face
   # while transforming everything to z=0 plane, ( or nearby :-) )

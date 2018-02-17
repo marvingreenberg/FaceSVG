@@ -1,3 +1,5 @@
+Sketchup.require('facesvg/su_util')
+
 module FaceSVG
   extend self
   ########################################################################
@@ -89,11 +91,5 @@ module FaceSVG
     else
       false
     end
-  end
-
-  # Compare two endpoints with tolerance
-  TOLERANCE = 0.05
-  def samepos(pos1, pos2)
-    (pos1 - pos2).length < TOLERANCE
   end
 end

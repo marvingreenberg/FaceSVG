@@ -40,4 +40,10 @@ module FaceSVG
   SVG_OUTPUT_DIRECTORY = 'SVG output directory'.freeze
   PROFILE_GROUP = 'SVG Profile Group'.freeze # group name
   PROFILE_LAYER = 'SVG Profile'.freeze # layer name
+
+  # For comparisons in the code
+  # Sketchup has some situations, like small
+  # ( < cm) features with curves where the tolerance
+  # needs to be larger (when ordering edges of a path)
+  TOLERANCE = 0.025
 end
