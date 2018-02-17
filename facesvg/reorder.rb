@@ -27,6 +27,7 @@ module FaceSVG
     end
     attr_reader :crv
     attr_reader :xform
+    attr_reader :center
     attr_reader :startpos
     attr_reader :endpos
   end
@@ -34,6 +35,7 @@ module FaceSVG
     def initialize(xform, edge)
       @xform = xform
       @crv = edge.curve
+      @center = @crv.center.transform(xform)
       @startpos = @crv.first_edge.start.position.transform(xform)
       @endpos = @crv.last_edge.end.position.transform(xform)
       FaceSVG.dbg('Transform path %s', inspect)

@@ -43,12 +43,10 @@ module FaceSVG
       # with accurate arc information
       # Note, now all paths are transformed to z=0. So start using 2d
       def initialize(arcpathpart)
-        xf = arcpathpart.xform
-        # Ensure the edges are ordered as a path
         @radius = arcpathpart.crv.radius
-        @centerxy = SVG.V2d(arcpathpart.crv.center.transform(xf))
-        @startxy = SVG.V2d(arcpathpart.startpos.transform(xf))
-        @endxy = SVG.V2d(arcpathpart.endpos.transform(xf))
+        @centerxy = SVG.V2d(arcpathpart.center)
+        @startxy = SVG.V2d(arcpathpart.startpos)
+        @endxy = SVG.V2d(arcpathpart.endpos)
         @start_angle = arcpathpart.crv.start_angle
         @end_angle = SVG.su_bug(arcpathpart.crv.end_angle)
         @xaxis2d = SVG.V2d(arcpathpart.crv.xaxis)
@@ -141,9 +139,8 @@ module FaceSVG
     class SVGSegment
       # Edge is a single line segment with a start and end x,y
       def initialize(edgepathpart)
-        xf = edgepathpart.xform
-        @startxy = SVG.V2d(edgepathpart.startpos.transform(xf))
-        @endxy = SVG.V2d(edgepathpart.endpos.transform(xf))
+        @startxy = SVG.V2d(edgepathpart.startpos)
+        @endxy = SVG.V2d(edgepathpart.endpos)
       end
 
       def svgdata(prev)
