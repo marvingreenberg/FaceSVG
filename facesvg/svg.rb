@@ -27,12 +27,14 @@ module FaceSVG
       def y; self[1]; end
     end
 
-    # Sketchup sometime has crazy end angles, like 4*PI, with a start of 0
-    # enforce end-start angle is no greater than 2*PI beyond start_angle
-    def normalize_end(start_angle, end_angle)
-      (start_angle + Math::PI +
-       (end_angle - Math::PI - start_angle).modulo(2*Math::PI))
+    # Sketchup sometime has crazy end angles, like 4*PI
+    # OH. it's a documented bug,
+    # http://ruby.sketchup.com/Sketchup/ArcCurve.html#end_angle-instance_method
+    def su_bug(end_angle)
+      end_angle -= (2 * Math::PI) if end_angle > (2 * Math::PI)
+      end_angle
     end
+
 
     # Sketchup is a mess - it draws curves and keeps information about them
     #  but treats everything as edges
@@ -49,7 +51,7 @@ module FaceSVG
         @startxy = SVG.V2d(arcpathpart.startpos.transform(xf))
         @endxy = SVG.V2d(arcpathpart.endpos.transform(xf))
         @start_angle = arcpathpart.crv.start_angle
-        @end_angle = SVG.normalize_end(@start_angle, arcpathpart.crv.end_angle)
+        @end_angle = SVG.su_bug(arcpathpart.crv.end_angle)
         @xaxis2d = SVG.V2d(arcpathpart.crv.xaxis)
         @yaxis2d = SVG.V2d(arcpathpart.crv.yaxis)
 
