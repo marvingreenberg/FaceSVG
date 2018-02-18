@@ -53,9 +53,9 @@ module FaceSVG
   end
 
   ################
-  def mark(saved_materials, *f_ary)
+  def mark(saved_properties, *f_ary)
     f_ary.each do |f|
-      saved_materials[f.entityID] = f.material
+      saved_properties[f.entityID] = [f.material, f.layer]
       f.material = FaceSVG.marker
     end
   end
@@ -67,10 +67,10 @@ module FaceSVG
     }
   end
 
-  def unmark(saved_materials, *f_ary)
+  def unmark(saved_properties, *f_ary)
     f_ary.select(&marked?).each do |f|
       # Reapply the saved material, popping it from the hash
-      f.material = saved_materials.delete(f.entityID)
+      f.material, f.layer = saved_properties.delete(f.entityID)
     end
   end
 
@@ -130,9 +130,9 @@ module FaceSVG
 
   def capture_faceprofiles(*f_ary)
     # Yields facegroup, face  (copied selection)
-    orig_materials = {}
+    orig_face_properties = {} # Save face material, layer through copy
     # mark the face(s) selected to copy
-    mark(orig_materials, *f_ary)
+    mark(orig_face_properties, *f_ary)
 
     # If more than one face in all_connected,
     # they are unmarked after processing the first time,
@@ -154,7 +154,7 @@ module FaceSVG
       }
 
       # unmark before explode tmp, face entityIDs change upon explode
-      unmark(orig_materials, *f.all_connected)
+      unmark(orig_face_properties, *f.all_connected)
 
       new_faces = new_entities.grep(Sketchup::Face)
       # Find originally selected (copied) face, could be >1, use first
