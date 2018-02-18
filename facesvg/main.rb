@@ -30,7 +30,6 @@ module FaceSVG
   class Configuration
     def initialize()
       @default_dir = nil
-      @svg_output = SINGLE_FILE
       @units = FaceSVG.su_model_unit
       if @units == INCHES
         @layout_spacing = 0.5 # 1/2" spacing
@@ -53,7 +52,6 @@ module FaceSVG
     attr_accessor :layout_spacing
     attr_accessor :layout_width
     attr_accessor :pocket_max
-    attr_accessor :svg_output
   end
 
   CFG = Configuration.new
@@ -87,11 +85,11 @@ module FaceSVG
   def facesvg_settings
     inputs = UI
              .inputbox(
-               [SVG_OUTPUT, LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH],
-               [CFG.svg_output, CFG.layout_width, CFG.layout_spacing, CFG.pocket_max, CFG.cut_depth],
-               [SVG_OUTPUT_OPTS, '', '', '', ''],
+               [LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH],
+               [CFG.layout_width, CFG.layout_spacing, CFG.pocket_max, CFG.cut_depth],
+               ['', '', '', ''],
                [FACESVG, SETTINGS].join(' '))
-    CFG.svg_output, CFG.layout_width, CFG.layout_spacing, CFG.pocket_max, CFG.cut_depth = inputs if inputs
+    CFG.layout_width, CFG.layout_spacing, CFG.pocket_max, CFG.cut_depth = inputs if inputs
   rescue => excp
     _show_and_reraise(excp)
   end
