@@ -12,12 +12,15 @@ Metrics/MethodLength:
 Metrics/ParameterLists:
   Max: 8
 
+Metrics/ModuleLength:
+  Max: 120
+
 Metrics/AbcSize:
   Max: 60
-  
+
 Naming/FileName:
   Enabled: false
-  
+
 Naming/MethodName:
   Enabled: false
 
@@ -42,7 +45,7 @@ Layout/SpaceAroundOperators:
 
 Layout/MultilineHashBraceLayout:
   Enabled: false
-  
+
 Style/SelfAssignment:
   Enabled: false
 
@@ -57,7 +60,7 @@ Style/Documentation:
 
 Style/ParallelAssignment:
   Enabled: false
-  
+
 Layout/AlignHash:
   Enabled: false
 
@@ -96,7 +99,7 @@ Style/DefWithParentheses:
 
 Style/Not:
    Enabled: false
-   
+
 Style/AndOr:
   Enabled: false
 

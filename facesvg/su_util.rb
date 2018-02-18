@@ -30,6 +30,11 @@ module FaceSVG
     m
   end
 
+  def su_close_active()
+    # Close any open edits, important when interacting with global model
+    while Sketchup.active_model.close_active do; end
+  end
+
   def su_model_unit()
     i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
     [INCHES, 'ft', MM, CM, 'm'][i]
@@ -53,9 +58,9 @@ module FaceSVG
   end
 
   ################
-  def mark(saved_materials, *f_ary)
+  def mark(saved_properties, *f_ary)
     f_ary.each do |f|
-      saved_materials[f.entityID] = f.material
+      saved_properties[f.entityID] = [f.material, f.layer]
       f.material = FaceSVG.marker
     end
   end
@@ -67,10 +72,10 @@ module FaceSVG
     }
   end
 
-  def unmark(saved_materials, *f_ary)
+  def unmark(saved_properties, *f_ary)
     f_ary.select(&marked?).each do |f|
       # Reapply the saved material, popping it from the hash
-      f.material = saved_materials.delete(f.entityID)
+      f.material, f.layer = saved_properties.delete(f.entityID)
     end
   end
 
@@ -130,9 +135,9 @@ module FaceSVG
 
   def capture_faceprofiles(*f_ary)
     # Yields facegroup, face  (copied selection)
-    orig_materials = {}
+    orig_face_properties = {} # Save face material, layer through copy
     # mark the face(s) selected to copy
-    mark(orig_materials, *f_ary)
+    mark(orig_face_properties, *f_ary)
 
     # If more than one face in all_connected,
     # they are unmarked after processing the first time,
@@ -144,7 +149,9 @@ module FaceSVG
       # Make xf to rotate selected face parallel to z=0, move all to
       #   quadrant to avoid itersecting existing geometry
       xf = Geom::Transformation.new(tmp.bounds.max, f.normal).inverse
-      # Duplicate into new transformed group
+      # Duplicate into a new group, switching to global context
+      #  (close open edits, if in group or component edit)
+      su_close_active()
       new_grp = Sketchup.active_model.entities.add_instance(tmp.definition, xf)
       # explode, creates the new entities, selecting all resulting faces, edges.
       new_entities = new_grp.explode.select { |e|
@@ -152,7 +159,7 @@ module FaceSVG
       }
 
       # unmark before explode tmp, face entityIDs change upon explode
-      unmark(orig_materials, *f.all_connected)
+      unmark(orig_face_properties, *f.all_connected)
 
       new_faces = new_entities.grep(Sketchup::Face)
       # Find originally selected (copied) face, could be >1, use first
