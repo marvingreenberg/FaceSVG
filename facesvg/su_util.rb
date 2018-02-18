@@ -144,7 +144,9 @@ module FaceSVG
       # Make xf to rotate selected face parallel to z=0, move all to
       #   quadrant to avoid itersecting existing geometry
       xf = Geom::Transformation.new(tmp.bounds.max, f.normal).inverse
-      # Duplicate into new transformed group
+      # Duplicate into a new group, switching to global context
+      #  (close open edits, if in group or component edit)
+      while Sketchup.active_model.close_active do; end
       new_grp = Sketchup.active_model.entities.add_instance(tmp.definition, xf)
       # explode, creates the new entities, selecting all resulting faces, edges.
       new_entities = new_grp.explode.select { |e|
