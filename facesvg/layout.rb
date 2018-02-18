@@ -25,6 +25,7 @@ module FaceSVG
       #   to allow for an observer to update the layout if elements are deleted
       def reset
         # UI: reset the layout state and clear any existing profile group
+        su_close_active()
         if su_profilegrp(create: false)
           FaceSVG.dbg('Remove %s', @su_profilegrp)
           Sketchup.active_model.entities.erase_entities @su_profilegrp
