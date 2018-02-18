@@ -30,6 +30,11 @@ module FaceSVG
     m
   end
 
+  def su_close_active()
+    # Close any open edits, important when interacting with global model
+    while Sketchup.active_model.close_active do; end
+  end
+
   def su_model_unit()
     i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
     [INCHES, 'ft', MM, CM, 'm'][i]
@@ -146,7 +151,7 @@ module FaceSVG
       xf = Geom::Transformation.new(tmp.bounds.max, f.normal).inverse
       # Duplicate into a new group, switching to global context
       #  (close open edits, if in group or component edit)
-      while Sketchup.active_model.close_active do; end
+      su_close_active()
       new_grp = Sketchup.active_model.entities.add_instance(tmp.definition, xf)
       # explode, creates the new entities, selecting all resulting faces, edges.
       new_entities = new_grp.explode.select { |e|
