@@ -21,10 +21,6 @@ module FaceSVG
   PK_GUIDE = 'guide'.freeze # TODO
 
   # Options
-  SVG_OUTPUT = 'SVG Output'.freeze
-  SINGLE_FILE = 'single file'.freeze
-  MULTI_FILE = 'multiple file'.freeze
-  SVG_OUTPUT_OPTS=[SINGLE_FILE, MULTI_FILE].join('|').freeze
   LAYOUT_WIDTH = 'Layout Width'.freeze
   LAYOUT_SPACING = 'Layout Spacing'.freeze
   POCKET_MAX = 'Pocket offset (max)'.freeze
@@ -37,7 +33,6 @@ module FaceSVG
   RESET_LAYOUT = 'Reset layout'.freeze
   WRITE_SVG = 'Write SVG profile'.freeze
   SVG_OUTPUT_FILE = 'SVG output file'.freeze
-  SVG_OUTPUT_DIRECTORY = 'SVG output directory'.freeze
   PROFILE_GROUP = 'SVG Profile Group'.freeze # group name
   PROFILE_LAYER = 'SVG Profile'.freeze # layer name
 

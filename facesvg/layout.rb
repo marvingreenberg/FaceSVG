@@ -37,12 +37,11 @@ module FaceSVG
       end
 
       ################
-      def makesvg(name, index, *grps)
+      def makesvg(name, *grps)
         bnds = Bounds.new.update(*grps)
         viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
-        fname = format(name, index)
-        svg = SVG::Canvas.new(fname, viewport, CFG.units)
-        svg.title(format('%s cut profile %s', @title, index))
+        svg = SVG::Canvas.new(name, viewport, CFG.units)
+        svg.title(format('%s cut profile', @title))
         svg.desc(format('Shaper cut profile from Sketchup model %s', @title))
 
         grps.each do |g|
@@ -50,8 +49,7 @@ module FaceSVG
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |f| f.material == FaceSVG.surface }
           # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
-          xf = index.nil? ? g.transformation : IDENTITY
-          faces.each { |f| svg.addpaths(xf, f, surface) }
+          faces.each { |f| svg.addpaths(g.transformation, f, surface) }
         end
         svg
       end
@@ -60,25 +58,16 @@ module FaceSVG
         # UI: write any layed out profiles as svg
         grps = su_profilegrp.entities.grep(Sketchup::Group)
 
-        if CFG.svg_output == MULTI_FILE
-          # Multi file - generate multiple "svg::Canvas"
-          outpath = UI.select_directory(title: SVG_OUTPUT_DIRECTORY, directory: CFG.default_dir)
-          return false if outpath.nil?
-          CFG.default_dir = outpath
-          name = "#{@title}%s.svg"
-          svglist = grps.each_with_index.map { |g, i| makesvg(name, i, g) }
-        else
-          # single_file - generate one "svg::Canvas" with all face grps
-          outpath = UI.savepanel(SVG_OUTPUT_FILE,
-                                 CFG.default_dir, "#{@title}.svg")
-          return false if outpath.nil?
-          CFG.default_dir = File.dirname(outpath)
-          name = File.basename(outpath)
-          svglist = [makesvg(name, nil, *grps)]
-        end
+        # single_file - generate one "svg::Canvas" with all face grps
+        outpath = UI.savepanel(SVG_OUTPUT_FILE,
+                               CFG.default_dir, "#{@title}.svg")
+        return false if outpath.nil?
+        CFG.default_dir = File.dirname(outpath)
+        name = File.basename(outpath)
 
-        svglist.each do |svg|
-          File.open(File.join(CFG.default_dir, svg.filename), 'w') { |file| svg.write(file) }
+        File.open(outpath, 'w') do |file|
+          svg = makesvg(name, *grps)
+          svg.write(file)
         end
       end
       ################
