@@ -96,8 +96,7 @@ module FaceSVG
           @ry = @vy.abs
         end
         # Angle of "x" vertex vector
-        @xrot = (@vx.x == 0) ? 90 : Math.atan(@vx.y / @vx.x)
-        @xrotdeg = @xrot.radians # converted from radians
+        @xrotdeg = (@vx.x == 0) ? 90 : Math.atan2(@vx.y, @vx.x).radians.modulo(360.0)
 
         midangle = (@end_angle + @start_angle)/2.0
         @midxy = ellipseXY_at_angle(midangle, absolute: true)
