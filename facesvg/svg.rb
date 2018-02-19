@@ -61,17 +61,21 @@ module FaceSVG
       # https://gamedev.stackexchange.com/questions/45412/
       #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
 
-      # cw in svg coordinate space, +y is down
+      def flip_y(v0)
+        SVG.V2d(v0.x, -v0.y)
+      end
+      # cwin svg coordinate space, +y is down.  But everything gets flipped
       def cw_normal(v0)
         SVG.V2d(-v0.y, v0.x)
       end
 
+      # Sweep flag depends on svg coordinate sense.  cw_normal, above defines.
       def sweep()
         # Calculate the sweep to midpoint, < 180 degrees,
         # same as finding if (center -> start)
         # is clockwise rotation from (center -> midpoint)
-        c_to_s = (@startxy - @centerxy)
-        c_to_e = (@midxy - @centerxy)
+        c_to_s = flip_y(@startxy - @centerxy)
+        c_to_e = flip_y(@midxy - @centerxy)
         c_to_e.dot(cw_normal(c_to_s)) > 0 ? '1' : '0'
       end
 
@@ -97,6 +101,7 @@ module FaceSVG
         end
         # Angle of "x" vertex vector
         @xrotdeg = (@vx.x == 0) ? 90 : Math.atan2(@vx.y, @vx.x).radians.modulo(360.0)
+        @xrotdeg = -@xrotdeg # for yaxis flip
 
         midangle = (@end_angle + @start_angle)/2.0
         @midxy = ellipseXY_at_angle(midangle, absolute: true)
@@ -115,7 +120,7 @@ module FaceSVG
       # Always set large arc FLAG to 0, just draw as two arcs if arc > PI.
       # This works for degenerate case where start==end
       SVG_ARC_FORMAT = " A #{FMT} #{FMT} #{FMT} 0 %s #{FMT} #{FMT}".freeze
-      def svgdata(prev)
+      def svgdata(prev,  ymax)
         sweep_fl = sweep()
         FaceSVG.dbg('Center %s vx %s vy %s Orig start,end angle %s,%s',
                     @centerxy, @vx, @vy, @start_angle.radians,
@@ -127,11 +132,11 @@ module FaceSVG
 
         # If first path (prev is nil) output "move",
         # Then draw arc to end, with arc to midpoint if "largarc"
-        ((prev.nil? ? format("M #{FMT} #{FMT}", @startxy.x, @startxy.y) : '') +
+        ((prev.nil? ? format("M #{FMT} #{FMT}", @startxy.x, ymax - @startxy.y) : '') +
           (@largearc ?
-            format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
+            format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, ymax - @midxy.y)
             : '') +
-          format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, @endxy.y))
+          format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, ymax - @endxy.y))
       end
     end
 
@@ -142,13 +147,15 @@ module FaceSVG
         @endxy = SVG.V2d(edgepathpart.endpos)
       end
 
-      def svgdata(prev)
+      def svgdata(prev, ymax)
         # If first path (prev is nil) output "move", rest just line draw
         FaceSVG.dbg('Move to %s', @startxy) if prev.nil?
         FaceSVG.dbg('Line to %s', @endxy)
 
-        (prev.nil? ? "M #{FMT} #{FMT}" % @startxy : '') + (
-          " L #{FMT} #{FMT}" % @endxy)
+        (prev.nil? ?
+          "M #{FMT} #{FMT}" % [@startxy.x, ymax - @startxy.y] :
+          '') + (
+          " L #{FMT} #{FMT}" % [@endxy.x, ymax - @endxy.y])
       end
     end
 
@@ -190,31 +197,11 @@ module FaceSVG
       def desc(text); @root.add_child(Node.new('desc', text: text)); end
 
       # Add an SVG path node
-      #
-      # ==== Attributes
-      #
-      # * +data+ - SVG path node 'd' sttribute, like "M 0 0 L 0 1 L 1 1 Z"
-      # * +fill+ - rgb for fill, like "rgb(0,0,0)" as a string.
-      # * +stroke+ - rgb for path stroke
-      # * +stroke_width+ - pixel width for path stroke
-      # * +path_type+ - "exterior" or "interior" or "edge???"
-      # * +cut_depth+ - depth in inches? for cutter head.
-      def mkpath(data, fill: nil, stroke: nil, stroke_width: nil, path_type: 'exterior',
-                 vector_effect: 'non-scaling-stroke', cut_depth: '0.0125', zlayer: 0.0)
-
-        p = Node
-            .new('path',
-                 attrs: {
-                   'd'=> data,
-                   'vector-effect' => vector_effect,
-                   'shaper:cutDepth' => cut_depth,
-                   'shaper:pathType' => path_type,
-                   'zlayer' => zlayer })
-        p.add_attr('fill', fill) if fill
-        p.add_attr('stroke', stroke) if stroke
-        p.add_attr('stroke-width', stroke_width) if stroke_width
-
-        @root.add_child(p)
+      def mkpath(svgloop)
+        data = svgloop.svgdata @maxy
+        attrs = { 'd' => data }
+        attrs.merge!(svgloop.attributes)
+        @root.add_child(Node.new('path', attrs: attrs))
       end
 
       def write(file)
@@ -242,7 +229,7 @@ module FaceSVG
           pathparts = loop.edges.map { |edge| PathPart.create(xf, curves, edge) }
           pathparts = FaceSVG.reorder(pathparts.reject(&:nil?))
           svgloop = Loop.create(pathparts, profile_kind, cut_depth)
-          mkpath(svgloop.svgdata, svgloop.attributes)
+          mkpath(svgloop)
         end
       end
     end
@@ -256,13 +243,14 @@ module FaceSVG
       def initialize(name, attrs: nil, text: nil)
         @name = name
         # attribute map
-        @attrs = attrs or {}
+        # Default stuff (desc, title) ordered to top (10.0)
+        @attrs = attrs.nil? ? {} : attrs.clone
+        # Do this first to remove ZLAYER (unsupported) from SVG
+        @zlayer = attrs && attrs.delete(ZLAYER) || 10.0
         # node text
         @text = text
         # node children
         @children = []
-        # Default stuff ordered to top (10.0) -- desc, title, etc.
-        @zlayer = attrs && attrs.delete('zlayer') || 10.0
       end
 
       attr_reader :zlayer
@@ -323,24 +311,34 @@ module FaceSVG
         @pathparts = pathparts
         # SVG paths have to be ordered to be displayed correctly, add a pseudo-zlayer
         if kind == PK_EXTERIOR
-          @attributes = { zlayer: 2.0, path_type: kind, cut_depth: cut_depth, fill: black }
+          @attributes = { ZLAYER => 2.0, SHAPER_PATH_TYPE => kind,
+            SHAPER_CUT_DEPTH => format(FMT, cut_depth), FILL => black }
         elsif kind == PK_INTERIOR
-          @attributes = { zlayer: 1.0, path_type: kind, cut_depth: cut_depth, fill: white,
-            stroke_width: '2', stroke: black }
+          @attributes = { ZLAYER => 1.0, SHAPER_PATH_TYPE => kind,
+            SHAPER_CUT_DEPTH => format(FMT, cut_depth), FILL => white,
+            STROKE_WIDTH => '2', STROKE => black,
+            VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         elsif kind == PK_POCKET
-          @attributes = { zlayer: -cut_depth, path_type: kind, cut_depth: cut_depth, fill: gray(cut_depth),
-            stroke_width: '2', stroke: gray(cut_depth) }
+          @attributes = { ZLAYER => -cut_depth, SHAPER_PATH_TYPE => kind,
+            SHAPER_CUT_DEPTH => format(FMT, cut_depth), FILL => gray(cut_depth),
+            STROKE_WIDTH => '2', STROKE =>  gray(cut_depth),
+            VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         else # PK_GUIDE, let's not fill, could be problematic
-          @attributes = { path_type: kind, stroke_width: '2', stroke: blue }
+          @attributes = { SHAPER_PATH_TYPE => kind, STROKE_WIDTH => '2',
+            STROKE => blue, VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         end
+        FaceSVG.dbg('Created Loop %s segments, %s, z %s depth %s fill %s',
+                    @pathparts.size, @attributes[SHAPER_PATH_TYPE],
+                    @attributes[ZLAYER], @attributes[SHAPER_CUT_DEPTH],
+                    @attributes[FILL])
       end
 
       attr_reader :attributes
 
       # Append all individual path data parts, with Z at end to closepath
-      def svgdata
+      def svgdata(ymax)
         prev = nil
-        (@pathparts.map { |p| d = p.svgdata(prev); prev = p; d }).join(' ') + ' Z'
+        (@pathparts.map { |p| d = p.svgdata(prev, ymax); prev = p; d }).join(' ') + ' Z'
       end
     end
   end

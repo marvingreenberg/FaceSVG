@@ -13,12 +13,20 @@ module FaceSVG
   CM = 'cm'.freeze
   MM = 'mm'.freeze
   SHAPER = 'shaper'.freeze
-  PROFILE_KIND = 'profilekind'.freeze
-  PROFILE_DEPTH = 'profiledepth'.freeze
   PK_INTERIOR = 'interior'.freeze
   PK_EXTERIOR = 'exterior'.freeze
   PK_POCKET = 'pocket'.freeze
   PK_GUIDE = 'guide'.freeze # TODO
+
+  # SVG XML CONSTANTS
+  SHAPER_CUT_DEPTH = 'shaper:cutDepth'.freeze
+  SHAPER_PATH_TYPE = 'shaper:pathType'.freeze
+  ZLAYER = 'zlayer'.freeze
+  FILL = 'fill'.freeze
+  STROKE = 'stroke'.freeze
+  STROKE_WIDTH = 'stroke_width'.freeze
+  VECTOR_EFFECT = 'vector-effect'.freeze
+  VE_NON_SCALING_STROKE = 'non-scaling-stroke'.freeze
 
   # Options
   LAYOUT_WIDTH = 'Layout Width'.freeze
