@@ -33,6 +33,13 @@ module FaceSVG
   LAYOUT_SPACING = 'Layout Spacing'.freeze
   POCKET_MAX = 'Pocket offset (max)'.freeze
   CUT_DEPTH = 'Cut Depth'.freeze
+  CORNER_RELIEF = 'Corner Relief'.freeze
+  CR_SYMMETRIC = 'Symmetric'
+  CR_ASYMMETRIC = 'Asymmetric'
+  CR_SYMMETRIC_AUTO = 'Symmetric, automatic'
+  CR_NONE = 'None'
+  CR_OPTIONS = [CR_NONE, CR_SYMMETRIC, CR_ASYMMETRIC,
+    CR_SYMMETRIC_AUTO].join('|')
 
   # Menus
   SETTINGS = 'Settings'.freeze

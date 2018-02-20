@@ -13,6 +13,14 @@ Sketchup.require('facesvg/svg')
 module FaceSVG
   module Layout
     ################
+    extend self
+
+    def relieve_corners(selset)
+      relief = CFG.corner_relief == CR_ASYMMETRIC ? &:asymmetric_relief : &:symmetric_relief
+      selset.grep(Sketchup::Edge).each { |e|
+
+    end
+
     class ProfileCollection
       # Used to transform the points in a face loop, and find the min,max x,y in
       #   the z=0 plane
@@ -72,9 +80,9 @@ module FaceSVG
         end
       end
       ################
-      def process_selection
+      def process_selection(selset)
         # UI: process any selected faces and lay out into profile grp
-        layout_facegrps(*Sketchup.active_model.selection(&:valid?).grep(Sketchup::Face))
+        layout_facegrps(*selset.selection(&:valid?).grep(Sketchup::Face))
       end
 
       ################
