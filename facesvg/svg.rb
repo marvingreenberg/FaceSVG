@@ -218,7 +218,10 @@ module FaceSVG
           pathparts = FaceSVG.reorder(pathparts.reject(&:nil?))
           svgloop = Loop.create(pathparts, profile_kind, cut_depth)
           data = svgloop.svgdata
-          attrs = { 'd' => data }
+          attrs = {
+            'd' => data,
+            'transform' => format("matrix(1,0,0,-1,0.0,#{FMT})", @maxy)
+          }
           attrs.merge!(svgloop.attributes)
           @root.add_child(Node.new('path', attrs: attrs))
         end
