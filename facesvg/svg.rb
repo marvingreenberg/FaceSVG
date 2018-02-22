@@ -61,10 +61,7 @@ module FaceSVG
       # https://gamedev.stackexchange.com/questions/45412/
       #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
 
-      def flip_y(v0)
-        SVG.V2d(v0.x, -v0.y)
-      end
-      # cwin svg coordinate space, +y is down.  But everything gets flipped
+      # cwin svg coordinate space, +y is down.
       def cw_normal(v0)
         SVG.V2d(-v0.y, v0.x)
       end
@@ -74,8 +71,8 @@ module FaceSVG
         # Calculate the sweep to midpoint, < 180 degrees,
         # same as finding if (center -> start)
         # is clockwise rotation from (center -> midpoint)
-        c_to_s = flip_y(@startxy - @centerxy)
-        c_to_e = flip_y(@midxy - @centerxy)
+        c_to_s = (@startxy - @centerxy)
+        c_to_e = (@midxy - @centerxy)
         c_to_e.dot(cw_normal(c_to_s)) > 0 ? '1' : '0'
       end
 
@@ -101,7 +98,6 @@ module FaceSVG
         end
         # Angle of "x" vertex vector
         @xrotdeg = (@vx.x == 0) ? 90 : Math.atan2(@vx.y, @vx.x).radians.modulo(360.0)
-        @xrotdeg = -@xrotdeg # for yaxis flip
 
         midangle = (@end_angle + @start_angle)/2.0
         @midxy = ellipseXY_at_angle(midangle, absolute: true)
@@ -120,7 +116,7 @@ module FaceSVG
       # Always set large arc FLAG to 0, just draw as two arcs if arc > PI.
       # This works for degenerate case where start==end
       SVG_ARC_FORMAT = " A #{FMT} #{FMT} #{FMT} 0 %s #{FMT} #{FMT}".freeze
-      def svgdata(prev,  ymax)
+      def svgdata(prev)
         sweep_fl = sweep()
         FaceSVG.dbg('Center %s vx %s vy %s Orig start,end angle %s,%s',
                     @centerxy, @vx, @vy, @start_angle.radians,
@@ -132,11 +128,11 @@ module FaceSVG
 
         # If first path (prev is nil) output "move",
         # Then draw arc to end, with arc to midpoint if "largarc"
-        ((prev.nil? ? format("M #{FMT} #{FMT}", @startxy.x, ymax - @startxy.y) : '') +
+        ((prev.nil? ? format("M #{FMT} #{FMT}", @startxy.x, @startxy.y) : '') +
           (@largearc ?
-            format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, ymax - @midxy.y)
+            format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
             : '') +
-          format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, ymax - @endxy.y))
+          format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, @endxy.y))
       end
     end
 
@@ -147,15 +143,15 @@ module FaceSVG
         @endxy = SVG.V2d(edgepathpart.endpos)
       end
 
-      def svgdata(prev, ymax)
+      def svgdata(prev)
         # If first path (prev is nil) output "move", rest just line draw
         FaceSVG.dbg('Move to %s', @startxy) if prev.nil?
         FaceSVG.dbg('Line to %s', @endxy)
 
         (prev.nil? ?
-          "M #{FMT} #{FMT}" % [@startxy.x, ymax - @startxy.y] :
+          "M #{FMT} #{FMT}" % [@startxy.x, @startxy.y] :
           '') + (
-          " L #{FMT} #{FMT}" % [@endxy.x, ymax - @endxy.y])
+          " L #{FMT} #{FMT}" % [@endxy.x, @endxy.y])
       end
     end
 
@@ -196,14 +192,6 @@ module FaceSVG
       # Set the SVG model description
       def desc(text); @root.add_child(Node.new('desc', text: text)); end
 
-      # Add an SVG path node
-      def mkpath(svgloop)
-        data = svgloop.svgdata @maxy
-        attrs = { 'd' => data }
-        attrs.merge!(svgloop.attributes)
-        @root.add_child(Node.new('path', attrs: attrs))
-      end
-
       def write(file)
         file.write("<!-- ARC is A xrad yrad xrotation-degrees largearc sweep end_x end_y -->\n")
         @root.write(file)
@@ -229,7 +217,10 @@ module FaceSVG
           pathparts = loop.edges.map { |edge| PathPart.create(xf, curves, edge) }
           pathparts = FaceSVG.reorder(pathparts.reject(&:nil?))
           svgloop = Loop.create(pathparts, profile_kind, cut_depth)
-          mkpath(svgloop)
+          data = svgloop.svgdata
+          attrs = { 'd' => data }
+          attrs.merge!(svgloop.attributes)
+          @root.add_child(Node.new('path', attrs: attrs))
         end
       end
     end
@@ -332,13 +323,12 @@ module FaceSVG
                     @attributes[ZLAYER], @attributes[SHAPER_CUT_DEPTH],
                     @attributes[FILL])
       end
-
       attr_reader :attributes
 
       # Append all individual path data parts, with Z at end to closepath
-      def svgdata(ymax)
+      def svgdata()
         prev = nil
-        (@pathparts.map { |p| d = p.svgdata(prev, ymax); prev = p; d }).join(' ') + ' Z'
+        (@pathparts.map { |p| d = p.svgdata(prev); prev = p; d }).join(' ') + 'Z '
       end
     end
   end
