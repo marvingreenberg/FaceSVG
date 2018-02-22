@@ -67,8 +67,7 @@ module FaceSVG
 
   def marked?
     proc { |f|
-      f.is_a?(Sketchup::Face) && !f.material.nil? && f.material.valid? &&
-        f.material == FaceSVG.marker
+      f.is_a?(Sketchup::Face) && f.valid? && f.material == FaceSVG.marker
     }
   end
 
