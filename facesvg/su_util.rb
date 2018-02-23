@@ -95,6 +95,7 @@ module FaceSVG
     # Convenience wrapper around a bounding box, accumulate the bounds
     #  of related faces and create a transform to move highest face
     #  to z=0, and min x,y to 0,0
+    # BoundingBox width and height methods are undocumented nonsense, ignore them
     def initialize()
       @bounds = Geom::BoundingBox.new
     end
@@ -103,8 +104,10 @@ module FaceSVG
       self
     end
 
-    def width; @bounds.width; end
-    def height; @bounds.height; end
+    # Return a number that is a measure of the "extent" if the bounding box
+    def extent; @bounds.diagonal; end
+    def width; @bounds.max.x - @bounds.min.x; end
+    def height; @bounds.max.y - @bounds.min.y; end
     def min; @bounds.min; end
     def max; @bounds.max; end
     def to_s; format('Bounds(min %s max %s)', @bounds.min, @bounds.max); end

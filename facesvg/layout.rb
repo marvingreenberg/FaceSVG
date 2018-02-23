@@ -50,7 +50,7 @@ module FaceSVG
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |f| f.material == FaceSVG.surface }
           # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
-          faces.each { |f| svg.addpaths(g.transformation, f, surface) }
+          faces.each { |f| svg.add_paths(g.transformation, f, surface) }
         end
         svg
       end

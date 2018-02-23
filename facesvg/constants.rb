@@ -15,16 +15,17 @@ module FaceSVG
   SHAPER = 'shaper'.freeze
   PK_INTERIOR = 'interior'.freeze
   PK_EXTERIOR = 'exterior'.freeze
-  PK_POCKET = 'pocket'.freeze
+  PK_POCKET = 'hogging'.freeze
   PK_GUIDE = 'guide'.freeze # TODO
 
   # SVG XML CONSTANTS
   SHAPER_CUT_DEPTH = 'shaper:cutDepth'.freeze
   SHAPER_PATH_TYPE = 'shaper:pathType'.freeze
-  ZLAYER = 'zlayer'.freeze
   FILL = 'fill'.freeze
   STROKE = 'stroke'.freeze
-  STROKE_WIDTH = 'stroke_width'.freeze
+  STROKE_WIDTH = 'stroke-width'.freeze
+  FILL_RULE = 'file-rule'.freeze
+  EVENODD = 'evenodd'.freeze
   VECTOR_EFFECT = 'vector-effect'.freeze
   VE_NON_SCALING_STROKE = 'non-scaling-stroke'.freeze
 
