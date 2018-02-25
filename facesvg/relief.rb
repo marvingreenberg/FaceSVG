@@ -99,7 +99,7 @@ module FaceSVG
     def asymmetric_relief_checks(edge, loop, radius)
       raise EDGE_NOT_IN_RECTANGLE if loop.edges.size != 4
       raise EDGE_NOT_INNER if loop.outer?
-      raise format(EDGE_TOO_SHORT_NN, radius) if edge.length <= 2*radius
+      raise format(EDGE_TOO_SHORT_NN, radius) if edge.length <= 2*(radius + 2*RADIUS_CLEARANCE)
     end
     ############################################################################
     def asymmetric_relief(edge, loop, radius)
