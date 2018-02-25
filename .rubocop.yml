@@ -13,7 +13,7 @@ Metrics/ParameterLists:
   Max: 8
 
 Metrics/ModuleLength:
-  Max: 120
+  Max: 140
 
 Metrics/AbcSize:
   Max: 60

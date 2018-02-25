@@ -34,6 +34,14 @@ module FaceSVG
   LAYOUT_SPACING = 'Layout Spacing'.freeze
   POCKET_MAX = 'Pocket offset (max)'.freeze
   CUT_DEPTH = 'Cut Depth'.freeze
+  CORNER_RELIEF = 'Corner Relief'.freeze
+  CR_SYMMETRIC = 'Symmetric'.freeze
+  CR_ASYMMETRIC = 'Asymmetric'.freeze
+  CR_SYMMETRIC_AUTO = 'Symmetric, automatic'.freeze
+  CR_NONE = 'None'.freeze
+  CR_OPTIONS = [CR_NONE, CR_SYMMETRIC, CR_ASYMMETRIC,
+                CR_SYMMETRIC_AUTO].join('|')
+  BIT_DIAMETER = 'Bit Diameter'.freeze
 
   # Menus
   SETTINGS = 'Settings'.freeze
@@ -50,4 +58,16 @@ module FaceSVG
   # ( < cm) features with curves where the tolerance
   # needs to be larger (when ordering edges of a path)
   TOLERANCE = 0.025
+
+  # Messages
+  ERROR_ASYMMETRIC_SINGLE_EDGE_SS =
+    '*Error* Select a single face edge for asymmetric corner relief (%s selected)'.freeze
+  NN_WARNING_LOOPS_IGNORED =
+    '*Warning* %s profiles ignored - not rectangular'.freeze
+  EDGE_NOT_INNER =
+    'Edge not part of an inner loop, cannot do asymmetric corner relief'.freeze
+  EDGE_TOO_SHORT_NN =
+    'Cannot generate corner relief with radius %s - edge too short'.freeze
+  EDGE_NOT_IN_RECTANGLE =
+    '*Error* Edge not rectangular'.freeze
 end

@@ -14,6 +14,7 @@ end
 
 Sketchup.require('facesvg/constants')
 Sketchup.require('facesvg/layout')
+Sketchup.require('facesvg/relief')
 Sketchup.require('facesvg/su_util')
 
 # API is strange - many operations create only approximate edges, but maintain accurate
@@ -31,27 +32,32 @@ module FaceSVG
     def initialize()
       @default_dir = nil
       @units = FaceSVG.su_model_unit
+      @corner_relief = CR_NONE
       if @units == INCHES
         @layout_spacing = 0.5 # 1/2" spacing
         @layout_width = 24.0
         @pocket_max = 0.75
         @sheetheight = 24.0 # unused
         @cut_depth = 0.25
+        @bit_diameter = 0.25
       else
         @layout_spacing = 1.5.cm # 1/2" spacing
         @layout_width = 625.mm
         @pocket_max = 2.0.cm
         @sheetheight = 625.mm # unused
         @cut_depth = 5.0.mm
+        @bit_diameter = 8.0.mm
       end
     end
     attr_accessor :units
+    attr_accessor :bit_diameter
     attr_accessor :cut_depth
     attr_accessor :default_dir
     attr_accessor :facesvg_version
     attr_accessor :layout_spacing
     attr_accessor :layout_width
     attr_accessor :pocket_max
+    attr_accessor :corner_relief
   end
 
   CFG = Configuration.new
@@ -66,8 +72,18 @@ module FaceSVG
     @@profilemap[title]
   end
 
-  def facesvg_2d_layout
-    su_operation(LAYOUT_SVG) { profile().process_selection() }
+  def facesvg_2d_layout(selset)
+    su_operation(LAYOUT_SVG) { profile().process_selection(selset) }
+  end
+
+  def corner_relief_available(selset)
+    CFG.corner_relief != CR_NONE && (
+      selset.find { |e| e.is_a?(Sketchup::Edge) || e.is_a?(Sketchup::Face) })
+  end
+  def facesvg_corner_relief(selset)
+    # Can do: symmetric corner relief on a face, or on an edge and connected edges
+    # Can do: asymmetric corner relief on a single edge on a face
+    su_operation(LAYOUT_SVG) { Relief.relieve_corners(selset) }
   end
 
   def facesvg_write
@@ -85,11 +101,15 @@ module FaceSVG
   def facesvg_settings
     inputs = UI
              .inputbox(
-               [LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH],
-               [CFG.layout_width, CFG.layout_spacing, CFG.pocket_max, CFG.cut_depth],
-               ['', '', '', ''],
+               [LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER],
+               [CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
+                CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter],
+               ['', '', '', '', CR_OPTIONS, ''],
                [FACESVG, SETTINGS].join(' '))
-    CFG.layout_width, CFG.layout_spacing, CFG.pocket_max, CFG.cut_depth = inputs if inputs
+    if inputs
+      (CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
+        CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter) = inputs
+    end
   rescue => excp
     _show_and_reraise(excp)
   end
@@ -106,11 +126,23 @@ module FaceSVG
       # }
 
       UI.add_context_menu_handler do |context_menu|
-        # selset = Sketchup.active_model.selection
+        selset = Sketchup.active_model.selection
         s_m = context_menu.add_submenu(FACESVG)
         s_m.add_item(SETTINGS) { facesvg_settings }
         s_m.add_item(RESET_LAYOUT) { facesvg_reset }
-        s_m.add_item(LAYOUT_SVG) { facesvg_2d_layout }
+
+        unless selset.grep(Sketchup::Face).empty?
+          s_m.add_item(LAYOUT_SVG) {
+            facesvg_2d_layout(selset)
+          }
+        end
+
+        if corner_relief_available(selset)
+          s_m.add_item(CORNER_RELIEF) {
+            facesvg_corner_relief(selset)
+          }
+        end
+
         s_m.add_item(WRITE_SVG) { facesvg_write } unless profile().empty?
       end
 
