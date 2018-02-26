@@ -120,7 +120,8 @@ module FaceSVG
           if CFG.corner_relief == CR_SYMMETRIC_AUTO
             surface_faces = new_entities.grep(Sketchup::Face)
                                         .select { |f| f.material == FaceSVG.surface }
-            Relief.relieve_face_corners(*surface_faces, CFG.bit_diameter/2, warning: false)
+            Relief.relieve_face_corners(*surface_faces, CFG.bit_diameter/2,
+                                        auto: true, warning: false)
           end
 
           add_su_facegrp(newgrp)

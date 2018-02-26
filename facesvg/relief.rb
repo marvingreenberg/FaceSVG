@@ -8,6 +8,10 @@ module FaceSVG
     # Extra clearance to prevent tool evaluating clearrance as inaccessible
     RADIUS_CLEARANCE = 0.01
 
+    # Auto symmetric corner relief, only do auto for "small" mortise slots
+    # Must have one dimension smaller than AUTO_SYMMETRIC_MAX
+    AUTO_SYMMETRIC_MAX = 2.5
+
     def cw(loop, edge: nil)
       # Return true if the loop edges are returned in a clockwise direction
       # Note taht teh sense of cw or ccw may be incorrect, but is returning
@@ -34,14 +38,14 @@ module FaceSVG
       UI.messagebox(msg)
     end
 
-    def relieve_face_corners(*faces, radius, warning: true)
+    def relieve_face_corners(*faces, radius, auto: false)
       raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, 'face') if CR_ASYMMETRIC == CFG.corner_relief
       # Not asymmetric, must be symmetric
       # TODO: If only outer loop, relieve outside corners.
       failures = faces.map { |f|
-        f.loops.reject(&:outer?).map { |l| symmetric_relief(l, radius) }
+        f.loops.reject(&:outer?).map { |l| symmetric_relief(l, radius, auto: auto) }
       }.count(false)
-      raise format(NN_WARNING_LOOPS_IGNORED, failures) if (failures !=0 && warning)
+      raise format(NN_WARNING_LOOPS_IGNORED, failures) if (failures !=0 && !auto)
     end
 
     def relieve_edge_corners(*edges, radius)
@@ -88,12 +92,12 @@ module FaceSVG
       edgepoints = loop.edges.map { |e| [e.start.position, e.end.position] }
       corners = edgepoints.zip(edgepoints.rotate(1)).map { |e0, e1| corner(e0, e1) }
 
-      rect = corners.map { |common, end0, end1|
+      # Return a rect of 4 triples
+      corners.map { |common, end0, end1|
         # Check 90 degree corners
-        break unless (end0 - common).dot(end1 - common) < 0.001
+        break [] unless (end0 - common).dot(end1 - common) < 0.001
         [common, end0, end1]
       }
-      rect.nil? ? [] : rect
     end
 
     def asymmetric_relief_checks(edge, loop, radius)
@@ -138,15 +142,26 @@ module FaceSVG
       end
     end
     ############################################################################
-    def symmetric_relief(loop, radius)
+    def check_auto_size(v0, v1, auto)
+      !auto || v0.length < AUTO_SYMMETRIC_MAX || v1.length < AUTO_SYMMETRIC_MAX
+    end
+    def check_edge_bigenough(v0, v1, min_edge)
+      # If edge is big enough for symmetric relief
+      v0.length > min_edge && v1.length > min_edge
+    end
+
+    def symmetric_relief(loop, radius, auto: false)
       entities = loop.parent.entities
       cw_fl = cw(loop)
       radius += RADIUS_CLEARANCE
+      min_edge = 4 * 0.7071 * radius
       # For each pair of rectangle corner, draw a relief arc
       waste = rectangle(loop).map { |common, end0, end1|
         # Two vectors pointing away from common corner, scaled to sqrt(1/2)
         v0 = (end0 - common)
         v1 = (end1 - common)
+        break [] unless check_edge_bigenough(v0, v1, min_edge) && check_auto_size(v0, v1, auto)
+
         v0.length = v1.length = 0.7071 * radius
         # FaceSVG.dbg('*-*-* %s corner v0 %s   v1 %s', common, v0, v1)
         center = common + v0 + v1
