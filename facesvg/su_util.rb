@@ -1,4 +1,5 @@
 Sketchup.require('facesvg/constants')
+Sketchup.require('matrix')
 
 module FaceSVG
   extend self
@@ -134,6 +135,19 @@ module FaceSVG
   # Want to copy all the connected faces (to keep arc edge metadata) and
   #  then delete all the faces that are "unrelated" to the selected face
   # while transforming everything to z=0 plane, ( or nearby :-) )
+  # If the chain of transforms has a negative determinant, it has one reflection
+
+  def reflection?(f)
+    # See if the transformations on the selected face result in a reflection.
+    # All the other transformations don't matter since are already transforming
+    # and rotating to get it into XY plane.  But a reflection needs inclusion
+    # Get the selected face, and find all transforms associated with it and parents
+    transforms = (f.model.active_path || [])
+                 .map(&:transformation) + [f.model.edit_transform]
+    prod = transforms.reduce(&:*).to_a
+    # Use ruby 3x3 Matrix to get determinant
+    (Matrix.columns([prod[0, 3], prod[4, 3], prod[8, 3]]).determinant < 0)
+  end
 
   def capture_faceprofiles(*f_ary)
     # Yields facegroup, face  (copied selection)
@@ -147,6 +161,9 @@ module FaceSVG
     f_ary.each do |f|
       next unless marked?.call(f)
 
+      # This has to be done before the edit is closed because Sketchup is incomprehensible
+      has_refl = reflection?(f)
+
       tmp = Sketchup.active_model.entities.add_group(f.all_connected)
       # Make xf to rotate selected face parallel to z=0, move all to
       #   quadrant to avoid itersecting existing geometry
@@ -154,6 +171,10 @@ module FaceSVG
       # Duplicate into a new group, switching to global context
       #  (close open edits, if in group or component edit)
       su_close_active()
+
+      # Assuming (since no f-ing documentation) Sketchup if post-multiply
+      xf = Geom::Transformation.scaling(-1.0, 1.0, 1.0) * xf if has_refl
+
       new_grp = Sketchup.active_model.entities.add_instance(tmp.definition, xf)
       # explode, creates the new entities, selecting all resulting faces, edges.
       new_entities = new_grp.explode.select { |e|
@@ -171,14 +192,12 @@ module FaceSVG
                       .grep(Sketchup::Face).select(&related_faces?(face))
                       .each(&annotate_related_faces(face))
 
-      bnds = Bounds.new.update(*related_faces)
-      # "ORIGIN" may still have parts of faces in negative, maybe
-
       # Delete copied faces, that were not originally selected and not "related"
       related_faces_and_edges = (related_faces + related_faces.map(&:edges)).flatten
       Sketchup.active_model.entities
               .erase_entities(new_entities - related_faces_and_edges)
 
+      bnds = Bounds.new.update(*related_faces)
       Sketchup.active_model.entities
               .transform_entities(bnds.shift_transform, related_faces_and_edges)
 
