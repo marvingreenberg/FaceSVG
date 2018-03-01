@@ -70,4 +70,6 @@ module FaceSVG
     'Cannot generate corner relief with radius %s - edge too short'.freeze
   EDGE_NOT_IN_RECTANGLE =
     '*Error* Edge not rectangular'.freeze
+  UNEXPECTED_NO_CONNECT_XX_AT_XX =
+    'Unexpected: No edge/arc connected %s at %s'.freeze
 end

@@ -1,4 +1,4 @@
-Sketchup.require('facesvg/su_util')
+Sketchup.require('facesvg/constants')
 
 module FaceSVG
   extend self
@@ -9,7 +9,7 @@ module FaceSVG
   module PathPart
     def reverse
       @startpos, @endpos = [@endpos, @startpos]
-      self
+      true
     end
     def inspect
       format('%s %s->%s', self.class.name, startpos, endpos)
@@ -27,19 +27,31 @@ module FaceSVG
         Line.new(xform, edge)
       end
     end
+    def connected_vertex?(v)
+      # true, if connected.  reverse this PathPart if connected "backwards"
+      v == start_vertex || v == end_vertex && reverse()
+    end
+
+    attr_reader :start_vertex
+    attr_reader :end_vertex
+
     attr_reader :crv
     attr_reader :xform
     attr_reader :center
     attr_reader :startpos
     attr_reader :endpos
   end
+
+  ################
   class Arc
     def initialize(xform, edge)
       @xform = xform
       @crv = edge.curve
+      @start_vertex = @crv.first_edge.start
+      @end_vertex = @crv.first_edge.end
       @center = @crv.center.transform(xform)
-      @startpos = @crv.first_edge.start.position.transform(xform)
-      @endpos = @crv.last_edge.end.position.transform(xform)
+      @startpos = @start_vertex.position.transform(xform)
+      @endpos = @end_vertex.position.transform(xform)
       FaceSVG.dbg('Transform path %s', inspect)
     end
     include PathPart
@@ -49,8 +61,10 @@ module FaceSVG
     def initialize(xform, edge)
       @xform = xform
       @crv = nil
-      @startpos = edge.start.position.transform(xform)
-      @endpos = edge.end.position.transform(xform)
+      @start_vertex = edge.start
+      @end_vertex = edge.end
+      @startpos = @start_vertex.position.transform(xform)
+      @endpos = @end_vertex.position.transform(xform)
       FaceSVG.dbg('Transform path %s', inspect)
     end
     include PathPart
@@ -63,33 +77,15 @@ module FaceSVG
   def reorder(elements)
     # Start at some edge/arc
     ordered = [elements[0]]
-    elements.delete_at(0)
 
     until elements.empty?
-      prev_elt = ordered[-1]
-      elements.each_with_index do |g, i|
-        if connected(ordered, prev_elt, g)
-          elements.delete_at(i)
-          break
-        end
-        if i == (elements.size - 1) # at end
-          raise format('Unexpected: No edge/arc connected %s at %s',
-                       prev_elt, prev_elt.endpos)
-        end
+      i = elements.index { |e| e.connected_vertex?(ordered[-1].end_vertex) }
+      if i.nil?
+        raise format(UNEXPECTED_NO_CONNECT_XX_AT_XX,
+                     ordered[-1], ordered[-1].end_vertex)
       end
+      ordered << elements.delete_at(i)
     end
     ordered
-  end
-
-  def connected(ordered, prev_elt, pathpart)
-    if samepos(prev_elt.endpos, pathpart.startpos)
-      ordered << pathpart
-      true
-    elsif samepos(prev_elt.endpos, pathpart.endpos)
-      ordered << pathpart.reverse
-      true
-    else
-      false
-    end
   end
 end

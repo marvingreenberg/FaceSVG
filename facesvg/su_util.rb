@@ -7,10 +7,6 @@ module FaceSVG
   def same(num0, num1)
     (num0-num1).abs < TOLERANCE
   end
-  # Compare two Point3d with tolerance
-  def samepos(pos1, pos2)
-    same((pos1 - pos2).length, 0.0)
-  end
 
   if ENV['FACESVG_DEBUG']
     def dbg(fmt, *args)
