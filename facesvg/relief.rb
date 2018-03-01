@@ -12,19 +12,6 @@ module FaceSVG
     # Must have one dimension smaller than AUTO_SYMMETRIC_MAX
     AUTO_SYMMETRIC_MAX = 2.5
 
-    def cw(loop, edge: nil)
-      # Return true if the loop edges are returned in a clockwise direction
-      # Note taht teh sense of cw or ccw may be incorrect, but is returning
-      # a value which gives correct results below to correct for sketchup ordering
-      # variations of edges.
-      edge = loop.edges[0] if edge.nil?
-      connected = loop.edges.find { |e|
-        e != edge && [e.start.position, e.end.position].member?(edge.start.position)
-      }
-      edge_v, connected_v = corner_vectors(edge, connected)
-      edge_v.cross(connected_v).dot(loop.face.normal) > 0
-    end
-
     def relieve_corners(selset)
       radius = CFG.bit_diameter/2.0
       # There may be faces selected, or edges
@@ -105,37 +92,69 @@ module FaceSVG
       raise EDGE_NOT_INNER if loop.outer?
       raise format(EDGE_TOO_SHORT_NN, radius) if edge.length <= 2*(radius + 2*RADIUS_CLEARANCE)
     end
+
+    def mid_v(e0, e1)
+      m0, m1 = [e0, e1].map { |e|
+        e.start.position.to_a.zip(e.end.position.to_a).map { |a, b| (a + b)/ 2.0 }
+      }
+      (Geom::Point3d.new(m1) - Geom::Point3d.new(m0))
+    end
+
     ############################################################################
     def asymmetric_relief(edge, loop, radius)
       asymmetric_relief_checks(edge, loop, radius)
-      # if the normal in same direction as face normal, clockwise loop
-      cw_fl = cw(loop, edge: edge)
+      # loop becomes invalid during operations
+      normal = loop.face.normal
+      entities = loop.parent.entities
 
       radius += RADIUS_CLEARANCE
 
-      opposite_edges = [edge,
-                        loop.edges.find { |e|
-                          !([edge.start, edge.end].member?(e.start) ||
-                          [edge.start, edge.end].member?(e.end))
-                        }]
+      # Given selected edge, opposite edge shares no points
+      oe0, oe1 = [edge,
+                  loop.edges.find { |e|
+                    !([edge.start, edge.end].member?(e.start) ||
+                      [edge.start, edge.end].member?(e.end))
+                  }]
+      # Ordering of edges and start,end is unpredictable in SU
+      #    p1
+      #   (|                 |)
+      #    |                 |
+      # oe0|-------mid_v---->|oe1
+      #    |                 |
+      #   (|                 |)
+      #    p0
+      # p0,p1 are edge ends
+      #
+      # If things look like this, draw arc (p0,p0+2*r) from 0 to PI
+      #   and arc (p1,p1-2*r) from PI to 2*PI.  If things look like this
+      # then vector from p1->p0 x midpt_vec is in same direction as face normal
+      # or (p0-p1).cross(oe1_mid - oe0_mid).dot( face.normal) > 0
+      # If it is negative, just reverse the names p0,p1 and do everything the same
+      # By symmetry oe1 can just be renamed oe0 and do everything the same
+      # for the other opposite edge
 
-      FaceSVG.dbg('asymmetric_relief %s, %s edges', cw_fl ? 'cw' : 'ccw', opposite_edges)
+      FaceSVG.dbg('asymmetric_relief edges %s and %s ', oe0, oe1)
 
-      opposite_edges.each do |oe|
+      # Have to calculate the mid point vectors ahead since parts of oe0 get deleted
+      [[oe0, mid_v(oe0, oe1)],
+       [oe1, mid_v(oe1, oe0)]].each do |oe, mvec|
         # Draw two arcs, and delete the waste
-        p0 = oe.start.position
-        p1 = oe.end.position
-        [[p0, p1, true], [p1, p0, false]].each do |st, en, dxn_fl|
-          r_vec = en-st
-          r_vec.length = radius
-          xaxis = r_vec.normalize
-          xaxis.reverse! unless (dxn_fl ^ cw_fl)
-          center = st + r_vec
-          entities = loop.parent.entities
-          arcedges = entities.add_arc(center, xaxis, loop.face.normal, radius, 0.0, Math::PI)
-          waste_ends = [st, center+r_vec]
+        p0, p1 = [oe.start.position, oe.end.position]
+
+        # Swap names if oriented backwards
+        p0, p1 = [p1, p0] if (p0 - p1).cross(mvec).dot(normal) < 0
+
+        (r_vec = p1 - p0).length = radius
+        xaxis = r_vec.normalize
+        # start, center, end
+        [[p0, p0 + r_vec, p0 + r_vec + r_vec],
+         [p1, p1 - r_vec, p1 - r_vec - r_vec]].each do |s, c, e|
+          # make the arc
+          arcedges = entities.add_arc(c, xaxis, normal,
+                                      radius, 0.0, Math::PI)
+          # Delete the one edge (line) that goes from s to e
           waste_edge = arcedges[0].all_connected.grep(Sketchup::Edge).find { |we|
-            waste_ends.member?(we.start.position) && waste_ends.member?(we.end.position)
+            [s, e].member?(we.start.position) && [s, e].member?(we.end.position)
           }
           entities.erase_entities(waste_edge)
         end
@@ -152,36 +171,58 @@ module FaceSVG
 
     def symmetric_relief(loop, radius, auto: false)
       entities = loop.parent.entities
-      cw_fl = cw(loop)
+      normal = loop.face.normal
       radius += RADIUS_CLEARANCE
       min_edge = 4 * 0.7071 * radius
+
       # For each pair of rectangle corner, draw a relief arc
       waste = rectangle(loop).map { |common, end0, end1|
-        # Two vectors pointing away from common corner, scaled to sqrt(1/2)
         v0 = (end0 - common)
         v1 = (end1 - common)
         break [] unless check_edge_bigenough(v0, v1, min_edge) && check_auto_size(v0, v1, auto)
+
+        # Two vectors pointing away from common corner, scaled to r * sqrt(1/2)
+        # p1
+        # .
+        # .
+        #
+        # ^ v1    *c
+        # |
+        # |
+        # |
+        # +------> v0 .... p0
+        #
+        #  If things are as drawn here, with vectors before scaling,
+        #  with normal out of screen, draw arc from (common + 2*v1) to
+        #  (common + 2*v0).  This means make the xaxis from c-> common + 2*v1
+        # But, because the ordering of the edges is
+        #  unpredictable, v0 and v1 may be reversed.  Since the face
+        #  normal is "up", v0 x v1 in same direction as normal
+        #  indicates this is the situation.  If they are reversed (dotprod < 0),
+        #  then v0 x v1 is opposite the normal
+
+        # Reverse if normal is opposite
+        v0, v1 = [v1, v0] if (v0.cross(v1).dot(normal) < 0)
 
         v0.length = v1.length = 0.7071 * radius
         # FaceSVG.dbg('*-*-* %s corner v0 %s   v1 %s', common, v0, v1)
         center = common + v0 + v1
         p0 = common + v0 + v0
         p1 = common + v1 + v1
-        xaxis = (p0 - center).normalize
-        xaxis.reverse! unless cw_fl
+        xaxis = (p1 - center).normalize
 
-        # Make a small offset
+        # Make two small offset edges - don't connect arc right to edges
         offset = common - center
         offset.length = 0.02
         # FaceSVG.dbg("*-*-* r= %s  center = %s  xaxis = %s\n\n", radius, center, xaxis)
 
         e0 = (entities.add_edges  p0, (p0+offset))[0]
         e1 = (entities.add_edges  p1, (p1+offset))[0]
-        entities.add_arc(center + offset, xaxis, loop.face.normal, radius, 0.0, Math::PI)
+        entities.add_arc(center + offset, xaxis, normal, radius, 0.0, Math::PI)
         # Return corners to allow deletion of corner segments
         [common, e0, e1]
       }
-      FaceSVG.dbg('symmetric_relief  %s edges: %s', loop.edges.size, waste.empty? ? 'skipped' : 'arcs created')
+      FaceSVG.dbg('symmetric_relief  %s', waste.empty? ? 'skipped' : 'arcs created')
       # After the reliefs are drawn the waste edges must be deleted
       #  These are the edges connected to the offset edges, with one end at the common corner
 
