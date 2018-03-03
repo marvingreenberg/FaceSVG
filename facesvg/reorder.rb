@@ -9,6 +9,7 @@ module FaceSVG
   module PathPart
     def reverse
       @startpos, @endpos = [@endpos, @startpos]
+      @start_vertex, @end_vertex = [@end_vertex, @start_vertex]
       true
     end
     def inspect
@@ -29,6 +30,7 @@ module FaceSVG
     end
     def connected_vertex?(v)
       # true, if connected.  reverse this PathPart if connected "backwards"
+      FaceSVG.dbg('Check %s in (%s, %s)', v, start_vertex, end_vertex)
       v == start_vertex || v == end_vertex && reverse()
     end
 
@@ -45,10 +47,9 @@ module FaceSVG
   ################
   class Arc
     def initialize(xform, edge)
-      @xform = xform
       @crv = edge.curve
       @start_vertex = @crv.first_edge.start
-      @end_vertex = @crv.first_edge.end
+      @end_vertex = @crv.last_edge.end
       @center = @crv.center.transform(xform)
       @startpos = @start_vertex.position.transform(xform)
       @endpos = @end_vertex.position.transform(xform)
@@ -59,7 +60,6 @@ module FaceSVG
   ################
   class Line
     def initialize(xform, edge)
-      @xform = xform
       @crv = nil
       @start_vertex = edge.start
       @end_vertex = edge.end
@@ -76,15 +76,16 @@ module FaceSVG
   ################
   def reorder(elements)
     # Start at some edge/arc
-    ordered = [elements[0]]
+    ordered = [elements.delete_at(0)]
 
     until elements.empty?
-      i = elements.index { |e| e.connected_vertex?(ordered[-1].end_vertex) }
+      i = elements.index { |elem| elem.connected_vertex?(ordered[-1].end_vertex) }
       if i.nil?
         raise format(UNEXPECTED_NO_CONNECT_XX_AT_XX,
                      ordered[-1], ordered[-1].end_vertex)
       end
       ordered << elements.delete_at(i)
+      FaceSVG.dbg('Found element %s match at %s', ordered[-1].inspect, i)
     end
     ordered
   end
