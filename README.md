@@ -2,13 +2,13 @@
 
 This is a plugin for Sketchup to generate an SVG outline from selected faces.  The plugin adds a couple operations to the "context menu" (right click) when a face is selected or to select the current face. "Layout SVG profile" copies the selected (and related) faces in to a special "SVG Profile" group.  "Write SVG profile" converts the edges of these faces into SVG paths, with the fill set according the the guidelines outlined by *Shaper Origin* for exterior and interior cuts profiles, and for "pocket" cuts.  New to this release, added support for pocket cuts, and the ability to manually edit and change the layout from within Sketchup.
 
-Also see [the Wiki](https://github.com/marvingreenberg/FaceSVG/wiki) for information on the latest release and future developments.  I plan to add a documentation page there.
+For a detailed description of how to use the plugin see the [Documentation](https://github.com/marvingreenberg/FaceSVG/wiki/Documentation).
 
 Go to https://github.com/marvingreenberg/FaceSVG/releases for download links for the ruby '.rbz' plugin.
 
-**If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via** [paypal.me/marvingreenberg/18](https://paypal.me/marvingreenberg/18).  (You know, one roll of shaper tape) If enough people are supporting this I'll make an effort to improve this actively.
+**If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via** [paypal.me/marvingreenberg/18](https://paypal.me/marvingreenberg/18).  (You know, one roll of shaper tape)
 
-See the YouTube video to see its operation.  My plan is to iterate through various improvements quickly.   I'm also very open to suggestions from the user community to improve or add features.
+See the YouTube video to see its operation.
 
 [![FaceSVG Video](https://github.com/marvingreenberg/FaceSVG/blob/master/images/FaceSVG2.png)](https://www.youtube.com/watch?v=IQFW8jPruxM)
 

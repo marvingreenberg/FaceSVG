@@ -13,6 +13,8 @@ Sketchup.require('facesvg/svg')
 module FaceSVG
   module Layout
     ################
+    extend self
+
     class ProfileCollection
       # Used to transform the points in a face loop, and find the min,max x,y in
       #   the z=0 plane
@@ -50,7 +52,7 @@ module FaceSVG
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |f| f.material == FaceSVG.surface }
           # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
-          faces.each { |f| svg.addpaths(g.transformation, f, surface) }
+          faces.each { |f| svg.add_paths(g.transformation, f, surface) }
         end
         svg
       end
@@ -72,9 +74,9 @@ module FaceSVG
         end
       end
       ################
-      def process_selection
+      def process_selection(selset)
         # UI: process any selected faces and lay out into profile grp
-        layout_facegrps(*Sketchup.active_model.selection(&:valid?).grep(Sketchup::Face))
+        layout_facegrps(*selset.select(&:valid?).grep(Sketchup::Face))
       end
 
       ################
@@ -113,6 +115,14 @@ module FaceSVG
 
           newgrp = su_profilegrp.entities.add_group(new_entities)
           FaceSVG.dbg('Face %s  layout x,y %s %s', bnds, @layoutx, @layoutx)
+
+          # Handle automatic corner relief
+          if CFG.corner_relief == CR_SYMMETRIC_AUTO
+            surface_faces = new_entities.grep(Sketchup::Face)
+                                        .select { |f| f.material == FaceSVG.surface }
+            Relief.relieve_face_corners(*surface_faces, CFG.bit_diameter/2, auto: true)
+          end
+
           add_su_facegrp(newgrp)
 
           @layoutx += CFG.layout_spacing + bnds.width
