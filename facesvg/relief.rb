@@ -5,12 +5,14 @@ module FaceSVG
   module Relief
     extend self
 
-    # Extra clearance to prevent tool evaluating clearrance as inaccessible
+    # Extra clearance to prevent tool evaluating clearance as inaccessible
     RADIUS_CLEARANCE = 0.01
+    # When adding relief, need SOME of original edge remaining
+    RELIEF_MIN_REMAIN = 0.1
 
     # Auto symmetric corner relief, only do auto for "small" mortise slots
     # Must have one dimension smaller than AUTO_SYMMETRIC_MAX
-    AUTO_SYMMETRIC_MAX = 2.5
+    AUTO_SYMMETRIC_MAX = 2.0
 
     def relieve_corners(selset)
       radius = CFG.bit_diameter/2.0
@@ -90,7 +92,8 @@ module FaceSVG
     def asymmetric_relief_checks(edge, loop, radius)
       raise EDGE_NOT_IN_RECTANGLE if loop.edges.size != 4
       raise EDGE_NOT_INNER if loop.outer?
-      raise format(EDGE_TOO_SHORT_NN, radius) if edge.length <= 2*(radius + 2*RADIUS_CLEARANCE)
+      raise format(EDGE_TOO_SHORT_NN, radius) if
+        edge.length <= (RELIEF_MIN_REMAIN + 4*(radius + RADIUS_CLEARANCE))
     end
 
     def mid_v(e0, e1)
@@ -164,22 +167,25 @@ module FaceSVG
     def check_auto_size(v0, v1, auto)
       !auto || v0.length < AUTO_SYMMETRIC_MAX || v1.length < AUTO_SYMMETRIC_MAX
     end
-    def check_edge_bigenough(v0, v1, min_edge)
+    def check_edge_bigenough(v0, v1, min_edge, radius, auto)
       # If edge is big enough for symmetric relief
-      v0.length > min_edge && v1.length > min_edge
+      chk = v0.length > min_edge && v1.length > min_edge
+      raise format(EDGE_TOO_SHORT_NN, radius) if !chk && !auto
+      chk
     end
 
     def symmetric_relief(loop, radius, auto: false)
       entities = loop.parent.entities
       normal = loop.face.normal
       radius += RADIUS_CLEARANCE
-      min_edge = 4 * 0.7071 * radius
+      min_edge = 4 * 0.7071 * radius + RELIEF_MIN_REMAIN
 
       # For each pair of rectangle corner, draw a relief arc
       waste = rectangle(loop).map { |common, end0, end1|
         v0 = (end0 - common)
         v1 = (end1 - common)
-        break [] unless check_edge_bigenough(v0, v1, min_edge) && check_auto_size(v0, v1, auto)
+        break [] unless (check_edge_bigenough(v0, v1, min_edge, radius, auto) &&
+                         check_auto_size(v0, v1, auto))
 
         # Two vectors pointing away from common corner, scaled to r * sqrt(1/2)
         # p1
