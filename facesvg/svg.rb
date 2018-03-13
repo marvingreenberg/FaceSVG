@@ -231,10 +231,7 @@ module FaceSVG
 
         # Return array of [ [SVGData, Bounds], [SVGData, Bounds] ,...]
         data_bnds = loops.map do |loop|
-          # regroup edges so arc edges are grouped with metadata, all ordered end to start
-          curves = [] # Keep track of processed arcs
-          pathparts = loop.edges.map { |edge| PathPart.create(xf, curves, edge) }
-          pathparts = FaceSVG.reorder(pathparts.reject(&:nil?))
+          pathparts = FaceSVG.reordered_path_parts(loop, xf)
           # Return array of [SVGData strings, Bounds]
           [SVGData.new(pathparts).to_s, Bounds.new.update(*loop.edges)]
         end
