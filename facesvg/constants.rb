@@ -10,6 +10,7 @@ require 'LangHandler'
 module FaceSVG
   # SVG units are: in, cm, mm... all these are unused for now, except INCHES
   INCHES = 'in'.freeze
+  FEET = 'ft'.freeze # pointless
   CM = 'cm'.freeze
   MM = 'mm'.freeze
   SHAPER = 'shaper'.freeze

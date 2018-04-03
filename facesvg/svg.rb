@@ -40,18 +40,17 @@ module FaceSVG
     #  but treats everything as edges
     # Create class to aggregate ArcCurve with its associated Edges
     class SVGArc
-      # Arc has a sequence of Sketchup::Edge (line) segments, and a curve object
-      # with accurate arc information
+      # Arc has a curve object with accurate arc information
       # Note, now all paths are transformed to z=0. So start using 2d
-      def initialize(arcpathpart)
+      def initialize(arcpathpart, as_unit)
         @radius = arcpathpart.crv.radius
-        @centerxy = SVG.V2d(arcpathpart.center)
-        @startxy = SVG.V2d(arcpathpart.startpos)
-        @endxy = SVG.V2d(arcpathpart.endpos)
+        @centerxy = SVG.V2d(as_unit.call(*arcpathpart.center))
+        @startxy = SVG.V2d(as_unit.call(*arcpathpart.startpos))
+        @endxy = SVG.V2d(as_unit.call(*arcpathpart.endpos))
         @start_angle = arcpathpart.crv.start_angle
         @end_angle = SVG.su_bug(arcpathpart.crv.end_angle)
-        @xaxis2d = SVG.V2d(arcpathpart.crv.xaxis)
-        @yaxis2d = SVG.V2d(arcpathpart.crv.yaxis)
+        @xaxis2d = SVG.V2d(as_unit.call(*arcpathpart.crv.xaxis))
+        @yaxis2d = SVG.V2d(as_unit.call(*arcpathpart.crv.yaxis))
 
         ellipse_parameters()
         FaceSVG.dbg("Defining SVGArc start, end, center, radius '%s' '%s' '%s' '%s' (ang %s %s)",
@@ -138,9 +137,9 @@ module FaceSVG
 
     class SVGSegment
       # Edge is a single line segment with a start and end x,y
-      def initialize(edgepathpart)
-        @startxy = SVG.V2d(edgepathpart.startpos)
-        @endxy = SVG.V2d(edgepathpart.endpos)
+      def initialize(edgepathpart, as_unit)
+        @startxy = SVG.V2d(as_unit.call(*edgepathpart.startpos))
+        @endxy = SVG.V2d(as_unit.call(*edgepathpart.endpos))
       end
 
       def svgdata(is_first)
@@ -159,14 +158,22 @@ module FaceSVG
     VIEWBOX = "#{FMT} #{FMT} #{FMT} #{FMT}".freeze
     # Class used to collect the output paths to be emitted as SVG
     class Canvas
-      def initialize(fname, viewport, _unit)
+      def initialize(fname, viewport)
+        # Canvas unit conversion depends on units in current model when Canvas is created
+        if [INCHES, FEET].member?(FaceSVG.su_model_unit())
+          @as_unit = proc { |*args| args }
+          @unit = INCHES
+        else
+          @unit = CM
+          @as_unit = proc { |*args| args.map { |x| x/2.540 } }
+        end
+
         @filename = fname
-        @minx, @miny, @maxx, @maxy = viewport
+        @minx, @miny, @maxx, @maxy = @as_unit.call(*viewport)
         @width = @maxx - @minx
         @height = @maxy - @miny
         # TODO: fix units somewhere globally
         # for now just use 'in' since that's what sketchup does.
-        @unit = 'in'
         @matrix = format("matrix(1,0,0,-1,0.0,#{FMT})", @maxy)
 
         @root = Node
@@ -194,7 +201,6 @@ module FaceSVG
       def desc(text); @root.add_children(Node.new('desc', text: text)); end
 
       def write(file)
-        file.write("<!-- ARC is A xrad yrad xrotation-degrees largearc sweep end_x end_y -->\n")
         @root.write(file)
       end
 
@@ -233,7 +239,7 @@ module FaceSVG
         data_bnds = loops.map do |loop|
           pathparts = FaceSVG.reordered_path_parts(loop, xf)
           # Return array of [SVGData strings, Bounds]
-          [SVGData.new(pathparts).to_s, Bounds.new.update(*loop.edges)]
+          [SVGData.new(pathparts, @as_unit).to_s, Bounds.new(unit: @as_unit).update(*loop.edges)]
         end
         # First data path is exterior, or pocket cut outer bounds
         # Pocket cut paths are joined as outer and inner with evenodd fill-rule
@@ -330,12 +336,12 @@ module FaceSVG
     end
 
     class SVGData
-      def initialize(pathpart_arr)
+      def initialize(pathpart_arr, as_unit)
         is_first = true
         dataparts = pathpart_arr.map { |part|
           d = (part.crv.nil? ?
-            SVGSegment.new(part).svgdata(is_first) :
-            SVGArc.new(part).svgdata(is_first))
+            SVGSegment.new(part, as_unit).svgdata(is_first) :
+            SVGArc.new(part, as_unit).svgdata(is_first))
           is_first = false;
           d
         }

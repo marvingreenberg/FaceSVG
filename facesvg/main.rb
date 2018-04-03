@@ -31,21 +31,20 @@ module FaceSVG
   class Configuration
     def initialize()
       @default_dir = nil
-      @units = FaceSVG.su_model_unit
       @corner_relief = CR_NONE
-      if @units == INCHES
-        @layout_spacing = 0.5 # 1/2" spacing
+      if [INCHES, FEET].member?(FaceSVG.su_model_unit)
+        @layout_spacing = 0.6 # bit spacing + tolerance
         @layout_width = 24.0
         @pocket_max = 0.75
         @sheetheight = 24.0 # unused
         @cut_depth = 0.25
         @bit_diameter = 0.25
       else
-        @layout_spacing = 1.5.cm # 1/2" spacing
+        @layout_spacing = 1.8.cm
         @layout_width = 625.mm
-        @pocket_max = 2.0.cm
+        @pocket_max = 1.8.cm
         @sheetheight = 625.mm # unused
-        @cut_depth = 5.0.mm
+        @cut_depth = 6.0.mm
         @bit_diameter = 8.0.mm
       end
     end

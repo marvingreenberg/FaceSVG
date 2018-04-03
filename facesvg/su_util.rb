@@ -34,7 +34,7 @@ module FaceSVG
 
   def su_model_unit()
     i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
-    [INCHES, 'ft', MM, CM, 'm'][i]
+    [INCHES, FEET, MM, CM, 'm'][i]
   end
 
   def su_operation(opname, transaction: true)
@@ -93,29 +93,32 @@ module FaceSVG
     #  of related faces and create a transform to move highest face
     #  to z=0, and min x,y to 0,0
     # BoundingBox width and height methods are undocumented nonsense, ignore them
-    def initialize()
+    def initialize(unit: nil)
+      @as_unit = unit.nil? ? ->(*x) { x } : unit
       @bounds = Geom::BoundingBox.new
     end
+
+    def as_unit(*args); @as_unit.call(*args); end
     def update(*e_ary)
       e_ary.each { |e| @bounds.add(e.bounds) }
       self
     end
 
     # Return a number that is a measure of the "extent" if the bounding box
-    def extent; @bounds.diagonal; end
-    def width; @bounds.max.x - @bounds.min.x; end
-    def height; @bounds.max.y - @bounds.min.y; end
-    def min; @bounds.min; end
-    def max; @bounds.max; end
-    def to_s; format('Bounds(min %s max %s)', @bounds.min, @bounds.max); end
+    def extent; as_unit(@bounds.diagonal)[0]; end
+    def min; Geom::Point3d.new(as_unit(*@bounds.min.to_a)); end
+    def max; Geom::Point3d.new(as_unit(*@bounds.max.to_a)); end
+    def width; max.x - min.x; end
+    def height; max.y - min.y; end
+    def to_s; format('Bounds(min %s max %s)', min, max); end
 
     def shift_transform
-      # Return a transformation to move min to 0,0, and shift bounds accordingly
+      # Return a transformation to move min to 0,0, and z to below 0
       Geom::Transformation
         .new([1.0, 0.0, 0.0, 0.0,
               0.0, 1.0, 0.0, 0.0,
               0.0, 0.0, 1.0, 0.0,
-              -@bounds.min.x, -@bounds.min.y, -@bounds.max.z, 1.0])
+              -min.x, -min.y, -max.z, 1.0])
     end
   end
 

@@ -43,7 +43,7 @@ module FaceSVG
       def makesvg(name, *grps)
         bnds = Bounds.new.update(*grps)
         viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
-        svg = SVG::Canvas.new(name, viewport, CFG.units)
+        svg = SVG::Canvas.new(name, viewport)
         svg.title(format('%s cut profile', @title))
         svg.desc(format('Shaper cut profile from Sketchup model %s', @title))
 
