@@ -193,14 +193,16 @@ module FaceSVG
       Sketchup.active_model.entities
               .erase_entities(new_entities - related_faces_and_edges)
 
+      # related_faces_and_edges = related_faces_and_edges.select(&:valid?)
+
       bnds = Bounds.new.update(*related_faces)
       Sketchup.active_model.entities
-              .transform_entities(bnds.shift_transform, related_faces_and_edges)
+              .transform_entities(bnds.shift_transform, related_faces)
 
       # Finally, explode the original face, back to as it was
       tmp.explode
 
-      yield related_faces_and_edges, bnds
+      yield related_faces, bnds
     end
   end
 end
