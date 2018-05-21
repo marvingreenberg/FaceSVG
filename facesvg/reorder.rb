@@ -11,7 +11,7 @@ module FaceSVG
       format('%s %s->%s', self.class.name, startpos, endpos)
     end
     def self.create(xform, edge, start_vertex)
-      if edge.curve.is_a?(Sketchup::ArcCurve)
+      if edge.curve.is_a?(Sketchup::ArcCurve) && !edge.curve.is_polygon?
         # many edges are part of one arc, process once, when its the start edge
         # or the confused end_edge (but definitely only once)
         #   else return nil
