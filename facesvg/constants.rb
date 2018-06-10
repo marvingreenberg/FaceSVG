@@ -24,7 +24,7 @@ module FaceSVG
   FILL = 'fill'.freeze
   STROKE = 'stroke'.freeze
   STROKE_WIDTH = 'stroke-width'.freeze
-  FILL_RULE = 'file-rule'.freeze
+  FILL_RULE = 'fill-rule'.freeze
   EVENODD = 'evenodd'.freeze
   VECTOR_EFFECT = 'vector-effect'.freeze
   VE_NON_SCALING_STROKE = 'non-scaling-stroke'.freeze
