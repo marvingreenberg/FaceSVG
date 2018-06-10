@@ -1,4 +1,4 @@
-VERSION=2.2.1
+VERSION=2.2.2
 
 plugin: check
 	rm facesvg*.rbz; zip -r facesvg-$(VERSION).rbz facesvg.rb facesvg/*rb
