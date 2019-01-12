@@ -4,6 +4,8 @@
 require 'sketchup'
 require 'extensions'
 require 'LangHandler'
+require 'json'
+require 'fileutils'
 
 # redefine module if reloading plugin under sketchup
 begin
@@ -30,25 +32,47 @@ module FaceSVG
   # defaults
   class Configuration
     def initialize()
-      @default_dir = nil
+      @default_dir = nil # not persistent
+
       @units = FaceSVG.su_model_unit
       @corner_relief = CR_NONE
       if @units == INCHES
+        @bit_diameter = 0.25
+        @cut_depth = 0.25 # unused
         @layout_spacing = 0.5 # 1/2" spacing
         @layout_width = 24.0
-        @pocket_max = 0.75
-        @sheetheight = 24.0 # unused
-        @cut_depth = 0.25
-        @bit_diameter = 0.25
+        @pocket_max = 0.76
       else
+        @bit_diameter = 8.0.mm
+        @cut_depth = 5.0.mm # unused
         @layout_spacing = 1.5.cm # 1/2" spacing
         @layout_width = 625.mm
         @pocket_max = 2.0.cm
-        @sheetheight = 625.mm # unused
-        @cut_depth = 5.0.mm
-        @bit_diameter = 8.0.mm
       end
+      load()
     end
+
+    def to_hash()
+      {
+        'bit_diameter' => @bit_diameter,
+        'cut_depth' => @cut_depth,
+        'corner_relief' => @corner_relief,
+        'layout_spacing' => @layout_spacing,
+        'layout_width' => @layout_width,
+        'pocket_max' => @pocket_max,
+        'units' => @units
+      }
+    end
+
+    def load()
+      return unless File.file?('.facesvg/settings.json')
+      File.open('.facesvg/settings.json', 'r') { |f|
+        JSON.parse(f.read()).each do |name, val| send(name+'=', val) end
+      }
+    rescue StandardError => excp
+      UI.messagebox('Error loading settings: ' + FileUtils.pwd + '/.facesvg/settings.json: ' + excp.to_s)
+    end
+
     attr_accessor :units
     attr_accessor :bit_diameter
     attr_accessor :cut_depth
@@ -99,16 +123,19 @@ module FaceSVG
   end
 
   def facesvg_settings
-    inputs = UI
-             .inputbox(
-               [LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER],
-               [CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
-                CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter],
-               ['', '', '', '', CR_OPTIONS, ''],
-               [FACESVG, SETTINGS].join(' '))
+    labels = [LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER]
+    values = [CFG.layout_width, CFG.layout_spacing,
+              CFG.pocket_max, CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter]
+    options = ['', '', '', '', CR_OPTIONS, '']
+    title = [FACESVG, SETTINGS].join(' ')
+    inputs = UI.inputbox(labels, values, options, title)
+
     if inputs
       (CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
         CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter) = inputs
+      # Just keep settings in a simple place, no Sketchup support
+      FileUtils.mkdir('.facesvg', mode: 0o755) unless File.directory?('.facesvg')
+      File.open('.facesvg/settings.json', 'w') { |f| f.write CFG.to_hash.to_json }
     end
   rescue => excp
     _show_and_reraise(excp)
