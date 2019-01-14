@@ -18,8 +18,7 @@ module FaceSVG
     class ProfileCollection
       # Used to transform the points in a face loop, and find the min,max x,y in
       #   the z=0 plane
-      def initialize(title)
-        @title = title
+      def initialize()
         reset()
       end
       ################
@@ -28,24 +27,31 @@ module FaceSVG
       def reset
         # UI: reset the layout state and clear any existing profile group
         FaceSVG.su_close_active()
-        if su_profilegrp(create: false)
-          FaceSVG.dbg('Remove %s', @su_profilegrp)
-          Sketchup.active_model.entities.erase_entities @su_profilegrp
+        if existing_profilegrp
+          FaceSVG.dbg('Remove %s', @profilegrp)
+          Sketchup.active_model.entities.erase_entities @profilegrp
         end
-
-        @su_profilegrp = nil # grp to hold all the SU face groups
-
+        @profilegrp_id = 0
+        nextgrp()
+        @profilegrp = nil # grp to hold current the SU face group
         # Information to manage the layout, maxx, maxy updated in layout_facegrp
         @layoutx, @layouty, @rowheight = [CFG.layout_spacing, CFG.layout_spacing, 0.0]
       end
 
+      def nextgrp
+        @profilegrp_id += 1
+        @current_profilegrp_name = PROFILE_GROUP + @profilegrp_id.to_s
+        # @profilegrp_list = []  #unused for now
+      end
+
       ################
-      def makesvg(name, *grps)
+      def makesvg(name, modelname, *grps)
         bnds = Bounds.new.update(*grps)
         viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
         svg = SVG::Canvas.new(name, viewport, CFG.units)
-        svg.title(format('%s cut profile', @title))
-        svg.desc(format('Shaper cut profile from Sketchup model %s', @title))
+
+        svg.title(format('%s cut profile', modelname))
+        svg.desc(format('Shaper cut profile from Sketchup model %s', modelname))
 
         grps.each do |g|
           # Get a surface (to calculate pocket offset if needed)
@@ -59,17 +65,22 @@ module FaceSVG
       ################
       def write
         # UI: write any layed out profiles as svg
-        grps = su_profilegrp.entities.grep(Sketchup::Group)
+        existing = existing_profilegrp
+        return unless existing
+        grps = existing.entities.grep(Sketchup::Group)
+
+        # TODO: sort out where and when title is assigned
+        modelname = Sketchup.active_model.name
 
         # single_file - generate one "svg::Canvas" with all face grps
         outpath = UI.savepanel(SVG_OUTPUT_FILE,
-                               CFG.default_dir, "#{@title}.svg")
+                               CFG.default_dir, "#{modelname}.svg")
         return false if outpath.nil?
         CFG.default_dir = File.dirname(outpath)
         name = File.basename(outpath)
 
         File.open(outpath, 'w') do |file|
-          svg = makesvg(name, *grps)
+          svg = makesvg(name, modelname, *grps)
           svg.write(file)
         end
       end
@@ -80,29 +91,37 @@ module FaceSVG
       end
 
       ################
-      def su_profilegrp(create: true)
-        # Find or create the group for the profile entities
-        return @su_profilegrp if @su_profilegrp && @su_profilegrp.valid?
-        @su_profilegrp = Sketchup::active_model.entities.grep(Sketchup::Group)
-                                 .find { |g| g.name==PROFILE_GROUP && g.valid? }
-        return @su_profilegrp if @su_profilegrp
-        # None existing, create (unless flag false)
-        return nil unless create
-        @su_profilegrp = Sketchup.active_model.entities.add_group()
+      def existing_profilegrp()
+        # Return nil or the existing group for the profile entities
+        return @profilegrp if @profilegrp && @profilegrp.valid?
+        @profilegrp = Sketchup::active_model.entities.grep(Sketchup::Group)
+                              .find { |g| g.name == @current_profilegrp_name && g.valid? }
+        return @profilegrp if @profilegrp
+        # None existing
+      end
+      def create_profilegrp()
+        existing = existing_profilegrp()
+        return existing if existing
+        @profilegrp = Sketchup.active_model.entities.add_group()
+        FaceSVG.dbg('Set name for %s to >>%s<<', @profilegrp, @current_profilegrp_name)
+        @profilegrp.name = @current_profilegrp_name
+        FaceSVG.dbg('Create %s (%s,%s)', @profilegrp, @current_profilegrp_name, @profilegrp.name)
       end
       ################
       def empty?
-        su_profilegrp(create: false).nil?
+        existing_profilegrp.nil?
       end
       ################
       def add_su_facegrp(facegrp)
         # Add new element to existing profile group by recreating the group
-        su_profilegrp.layer = Sketchup.active_model.layers[0]
-        @su_profilegrp = Sketchup.active_model.entities
-                                 .add_group(@su_profilegrp.explode + [facegrp])
+        create_profilegrp
+        @profilegrp.layer = Sketchup.active_model.layers[0]
+        grp_name = @profilegrp.name
+        @profilegrp = Sketchup.active_model.entities
+                              .add_group(@profilegrp.explode + [facegrp])
         @su_profilelayer = Sketchup.active_model.layers.add(PROFILE_LAYER)
-        @su_profilegrp.name = PROFILE_GROUP
-        @su_profilegrp.layer = @su_profilelayer
+        @profilegrp.name = grp_name
+        @profilegrp.layer = @su_profilelayer
       end
       ################
       def layout_facegrps(*su_faces)
@@ -113,7 +132,8 @@ module FaceSVG
           # Transform them and then add them back into a group
           Sketchup.active_model.entities.transform_entities(layout_xf, new_entities)
 
-          newgrp = su_profilegrp.entities.add_group(new_entities)
+          create_profilegrp
+          newgrp = @profilegrp.entities.add_group(new_entities)
           FaceSVG.dbg('Face %s  layout x,y %s %s', bnds, @layoutx, @layoutx)
 
           # Handle automatic corner relief

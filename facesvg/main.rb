@@ -29,71 +29,14 @@ Sketchup.require('facesvg/su_util')
 
 module FaceSVG
   VERSION = Sketchup.extensions.find { |e| e.name == 'Face SVG Export' }.version
-  # defaults
-  class Configuration
-    def initialize()
-      @default_dir = nil # not persistent
-
-      @units = FaceSVG.su_model_unit
-      @corner_relief = CR_NONE
-      if @units == INCHES
-        @bit_diameter = 0.25
-        @cut_depth = 0.25 # unused
-        @layout_spacing = 0.5 # 1/2" spacing
-        @layout_width = 24.0
-        @pocket_max = 0.76
-      else
-        @bit_diameter = 8.0.mm
-        @cut_depth = 5.0.mm # unused
-        @layout_spacing = 1.5.cm # 1/2" spacing
-        @layout_width = 625.mm
-        @pocket_max = 2.0.cm
-      end
-      load()
-    end
-
-    def to_hash()
-      {
-        'bit_diameter' => @bit_diameter,
-        'cut_depth' => @cut_depth,
-        'corner_relief' => @corner_relief,
-        'layout_spacing' => @layout_spacing,
-        'layout_width' => @layout_width,
-        'pocket_max' => @pocket_max,
-        'units' => @units
-      }
-    end
-
-    def load()
-      return unless File.file?('.facesvg/settings.json')
-      File.open('.facesvg/settings.json', 'r') { |f|
-        JSON.parse(f.read()).each do |name, val| send(name+'=', val) end
-      }
-    rescue StandardError => excp
-      UI.messagebox('Error loading settings: ' + FileUtils.pwd + '/.facesvg/settings.json: ' + excp.to_s)
-    end
-
-    attr_accessor :units
-    attr_accessor :bit_diameter
-    attr_accessor :cut_depth
-    attr_accessor :default_dir
-    attr_accessor :facesvg_version
-    attr_accessor :layout_spacing
-    attr_accessor :layout_width
-    attr_accessor :pocket_max
-    attr_accessor :corner_relief
-  end
-
-  CFG = Configuration.new
 
   extend self # instead of 'def self' everywhere
 
-  @@profilemap = Hash.new { |h, k| h[k] = Layout::ProfileCollection.new(k) }
+  @@profilemap = Hash.new { |h, k| h[k] = Layout::ProfileCollection.new() }
 
   # On Mac, can have multiple open models, keep ProfileCollection for each model
   def profile()
-    title = Sketchup.active_model.title or 'Untitled'
-    @@profilemap[title]
+    @@profilemap[Sketchup.active_model.guid]
   end
 
   def facesvg_2d_layout(selset)
@@ -123,19 +66,21 @@ module FaceSVG
   end
 
   def facesvg_settings
-    labels = [LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER]
-    values = [CFG.layout_width, CFG.layout_spacing,
+    labels = [MULTIFILE_MODE, LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER]
+    values = [CFG.multifile_mode, CFG.layout_width, CFG.layout_spacing,
               CFG.pocket_max, CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter]
-    options = ['', '', '', '', CR_OPTIONS, '']
+    options = [MULTIFILE_OPTIONS, '', '', '', '', CR_OPTIONS, '']
     title = [FACESVG, SETTINGS].join(' ')
     inputs = UI.inputbox(labels, values, options, title)
 
     if inputs
-      (CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
+      (CFG.multifile_mode, CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
         CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter) = inputs
       # Just keep settings in a simple place, no Sketchup support
       FileUtils.mkdir('.facesvg', mode: 0o755) unless File.directory?('.facesvg')
-      File.open('.facesvg/settings.json', 'w') { |f| f.write CFG.to_hash.to_json }
+      File.open('.facesvg/settings.json', 'w') do |f|
+        f.write CFG.to_hash.to_json.gsub(',"', ",\n   \"")
+      end
     end
   rescue => excp
     _show_and_reraise(excp)

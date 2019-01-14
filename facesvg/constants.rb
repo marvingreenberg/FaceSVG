@@ -30,6 +30,10 @@ module FaceSVG
   VE_NON_SCALING_STROKE = 'non-scaling-stroke'.freeze
 
   # Options
+  MULTIFILE_MODE = 'Multifile Mode'.freeze
+  MULTIPLE_FILE = 'Multiple'.freeze
+  SINGLE_FILE = 'Single'.freeze
+  MULTIFILE_OPTIONS = [MULTIPLE_FILE, SINGLE_FILE].join('|')
   LAYOUT_WIDTH = 'Layout Width'.freeze
   LAYOUT_SPACING = 'Layout Spacing'.freeze
   POCKET_MAX = 'Pocket offset (max)'.freeze

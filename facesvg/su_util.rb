@@ -8,17 +8,9 @@ module FaceSVG
     (num0-num1).abs < TOLERANCE
   end
 
-  if ENV['FACESVG_DEBUG']
-    def dbg(fmt, *args)
-      puts format(fmt, *args)
-    end
-  else
-    def dbg(*args); end
-  end
-
-  def marker; mk_material('svg_marker', 'blue'); end
-  def surface; mk_material('svg_surface', [0, 0, 0]); end
-  def pocket; mk_material('svg_pocket', [165, 165, 165]); end
+  def marker; mk_material('svg_marker', 'red'); end
+  def surface; mk_material('svg_surface', CFG.fill_color_outside); end
+  def pocket; mk_material('svg_pocket', CFG.fill_color_pocket); end
 
   def mk_material(name, color)
     m = Sketchup::active_model.materials[name]
@@ -86,6 +78,104 @@ module FaceSVG
         face.normal.length * other.normal.length) &&
         face_offset(face, other) < CFG.pocket_max
     }
+  end
+
+  # defaults
+  class Configuration
+    def initialize()
+      @default_dir = nil # not persistent
+
+      # Undocumented settings
+      @debug = false
+      @annotation_color= 'blue'
+      @stroke_color = [0, 0, 0]
+      @fill_color_inside = [255, 255, 255]
+      @fill_color_outside = [0, 0, 0]
+      @fill_color_pocket = [165, 165, 165]
+
+      @units = FaceSVG.su_model_unit
+      @corner_relief = CR_NONE
+      @multifile_mode = SINGLE_FILE
+      if @units == INCHES
+        @bit_diameter = 0.25
+        @cut_depth = 0.25 # unused
+        @layout_spacing = 0.5 # 1/2" spacing
+        @layout_width = 24.0
+        @pocket_max = 0.76
+      else
+        @bit_diameter = 8.0.mm
+        @cut_depth = 5.0.mm # unused
+        @layout_spacing = 1.5.cm # 1/2" spacing
+        @layout_width = 625.mm
+        @pocket_max = 2.0.cm
+      end
+      load()
+    end
+
+    # Unset settings are just nil
+    def send(*args)
+      __send__(*args)
+    rescue NoMethodError
+      nil
+    end
+
+    # Don't save units, since that comes from the model
+    def to_hash()
+      {
+        'bit_diameter' => @bit_diameter,
+        'cut_depth' => @cut_depth,
+        'corner_relief' => @corner_relief,
+        'layout_spacing' => @layout_spacing,
+        'layout_width' => @layout_width,
+        'pocket_max' => @pocket_max,
+        'debug' => @debug,
+        'annotation_color' => @annotation_color,
+        'stroke_color' => @stroke_color,
+        'fill_color_pocket' => @fill_color_pocket,
+        'fill_color_inside' => @fill_color_inside,
+        'fill_color_outside' => @fill_color_outside
+      }
+    end
+
+    def load()
+      return unless File.file?('.facesvg/settings.json')
+      File.open('.facesvg/settings.json', 'r') { |f|
+        JSON.parse(f.read()).each do |name, val| send(name+'=', val) end
+      }
+    rescue StandardError => excp
+      UI.messagebox('Error loading settings: ' + FileUtils.pwd + '/.facesvg/settings.json: ' + excp.to_s)
+    end
+
+    attr_accessor :multifile_mode
+    attr_accessor :units
+    attr_accessor :bit_diameter
+    attr_accessor :cut_depth
+    attr_accessor :default_dir
+    attr_accessor :facesvg_version
+    attr_accessor :layout_spacing
+    attr_accessor :layout_width
+    attr_accessor :pocket_max
+    attr_accessor :corner_relief
+
+    # Undocumented settings
+    attr_accessor :stroke_color
+    attr_accessor :fill_color_inside
+    attr_accessor :fill_color_outside
+    attr_accessor :fill_color_pocket
+    attr_accessor :annotation_color
+    attr_accessor :debug
+  end
+
+  # Global configuration instance
+  CFG = Configuration.new
+
+  # Simple debugging method
+  if CFG.debug
+    def dbg(fmt, *args)
+      puts format(fmt, *args)
+    end
+  else
+    def dbg(*args); end
   end
 
   class Bounds
