@@ -22,14 +22,10 @@ Sketchup.require('facesvg/su_util')
 # API is strange - many operations create only approximate edges, but maintain accurate
 #   circular or elliptical arc metadata separately.
 
-# TODO: bit size 1/8, 1/4
-# TODO: Look at?  Probably way overkill
-# https://www.codeproject.com/Articles/210979/Fast-optimizing-rectangle-packing-algorithm-for-bu
-# for way to simply arrange the rectangles efficiently in layout, maybe overkill.
-
 module FaceSVG
   VERSION = Sketchup.extensions.find { |e| e.name == 'Face SVG Export' }.version
 
+  FaceSVG.info('--- FaceSVG %s plugin initialized ---', VERSION)
   extend self # instead of 'def self' everywhere
 
   @@profilemap = Hash.new { |h, k| h[k] = Layout::ProfileCollection.new() }
@@ -44,7 +40,7 @@ module FaceSVG
   end
 
   def corner_relief_available(selset)
-    CFG.corner_relief != CR_NONE && (
+    FaceSVG::cfg().corner_relief != CR_NONE && (
       selset.find { |e| e.is_a?(Sketchup::Edge) || e.is_a?(Sketchup::Face) })
   end
   def facesvg_corner_relief(selset)
@@ -65,22 +61,18 @@ module FaceSVG
     su_operation(RESET_LAYOUT) { profile().reset() }
   end
 
+  def facesvg_next
+    profile().next_grp()
+  end
+
   def facesvg_settings
-    labels = [MULTIFILE_MODE, LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER]
-    values = [CFG.multifile_mode, CFG.layout_width, CFG.layout_spacing,
-              CFG.pocket_max, CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter]
-    options = [MULTIFILE_OPTIONS, '', '', '', '', CR_OPTIONS, '']
-    title = [FACESVG, SETTINGS].join(' ')
-    inputs = UI.inputbox(labels, values, options, title)
+    title = format('%s %s %s', FACESVG, VERSION, SETTINGS)
+    inputs = UI.inputbox(FaceSVG::cfg().labels, FaceSVG::cfg().values, FaceSVG::cfg().options, title)
 
     if inputs
-      (CFG.multifile_mode, CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
-        CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter) = inputs
+      FaceSVG::cfg().inputs(inputs)
       # Just keep settings in a simple place, no Sketchup support
-      FileUtils.mkdir('.facesvg', mode: 0o755) unless File.directory?('.facesvg')
-      File.open('.facesvg/settings.json', 'w') do |f|
-        f.write CFG.to_hash.to_json.gsub(',"', ",\n   \"")
-      end
+      FaceSVG::cfg().save()
     end
   rescue => excp
     _show_and_reraise(excp)
@@ -88,14 +80,11 @@ module FaceSVG
 
   unless file_loaded?(__FILE__)
     begin
-      # No point to static menu for now
-      # menu = UI.menu('Plugins')
-      # menu.add_item('FaceSVG 2D Layout') {
-      #   facesvg_2d_layout
-      # }
-      # menu.add_item('FaceSVG Settings') {
-      #   facesvg_settings
-      # }
+      # Add help menu
+      menu = UI.menu('Plugins')
+      menu.add_item('FaceSVG Help') {
+        UI.openURL('https://github.com/marvingreenberg/FaceSVG/wiki/Documentation')
+      }
 
       UI.add_context_menu_handler do |context_menu|
         selset = Sketchup.active_model.selection
@@ -109,6 +98,11 @@ module FaceSVG
           }
         end
 
+        if FaceSVG::cfg().multifile_mode?()
+          s_m.add_item(NEXT_GROUP) {
+            facesvg_next()
+          }
+        end
         if corner_relief_available(selset)
           s_m.add_item(CORNER_RELIEF) {
             facesvg_corner_relief(selset)

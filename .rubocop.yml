@@ -15,6 +15,9 @@ Metrics/ParameterLists:
 Metrics/ModuleLength:
   Max: 140
 
+Metrics/ClassLength:
+  Max: 160
+
 Metrics/AbcSize:
   Max: 60
 
