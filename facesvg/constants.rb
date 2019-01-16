@@ -31,9 +31,9 @@ module FaceSVG
 
   # Options
   MULTIFILE_MODE = 'Multifile Mode'.freeze
-  MULTIPLE_FILE = 'Multiple'.freeze
-  SINGLE_FILE = 'Single'.freeze
-  MULTIFILE_OPTIONS = [MULTIPLE_FILE, SINGLE_FILE].join('|')
+  MULTIPLE = 'Multiple'.freeze
+  SINGLE = 'Single'.freeze
+  MULTIFILE_OPTIONS = [MULTIPLE, SINGLE].join('|')
   LAYOUT_WIDTH = 'Layout Width'.freeze
   LAYOUT_SPACING = 'Layout Spacing'.freeze
   POCKET_MAX = 'Pocket offset (max)'.freeze
@@ -52,8 +52,10 @@ module FaceSVG
   FACESVG = 'FaceSVG'.freeze
   LAYOUT_SVG = 'Layout SVG Profile'.freeze
   RESET_LAYOUT = 'Reset layout'.freeze
-  WRITE_SVG = 'Write SVG profile'.freeze
+  WRITE_SVG = 'Write SVG Profile(s)'.freeze
+  NEXT_GROUP = 'Next SVG Profile'.freeze
   SVG_OUTPUT_FILE = 'SVG output file'.freeze
+
   PROFILE_GROUP = 'SVG Profile Group'.freeze # group name
   PROFILE_LAYER = 'SVG Profile'.freeze # layer name
 

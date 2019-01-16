@@ -9,6 +9,7 @@ module FaceSVG
   end
 
   def marker; mk_material('svg_marker', 'red'); end
+  def annotation; mk_material('svg_annotation', CFG.annotation_color); end
   def surface; mk_material('svg_surface', CFG.fill_color_outside); end
   def pocket; mk_material('svg_pocket', CFG.fill_color_pocket); end
 
@@ -95,7 +96,7 @@ module FaceSVG
 
       @units = FaceSVG.su_model_unit
       @corner_relief = CR_NONE
-      @multifile_mode = SINGLE_FILE
+      @multifile_mode = SINGLE
       if @units == INCHES
         @bit_diameter = 0.25
         @cut_depth = 0.25 # unused
@@ -191,7 +192,7 @@ module FaceSVG
       self
     end
 
-    # Return a number that is a measure of the "extent" if the bounding box
+    # Return a number that is a measure of the "extent" of the bounding box
     def extent; @bounds.diagonal; end
     def width; @bounds.max.x - @bounds.min.x; end
     def height; @bounds.max.y - @bounds.min.y; end

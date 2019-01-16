@@ -65,6 +65,10 @@ module FaceSVG
     su_operation(RESET_LAYOUT) { profile().reset() }
   end
 
+  def facesvg_next
+    profile().next()
+  end
+
   def facesvg_settings
     labels = [MULTIFILE_MODE, LAYOUT_WIDTH, LAYOUT_SPACING, POCKET_MAX, CUT_DEPTH, CORNER_RELIEF, BIT_DIAMETER]
     values = [CFG.multifile_mode, CFG.layout_width, CFG.layout_spacing,
@@ -109,6 +113,11 @@ module FaceSVG
           }
         end
 
+        if CFG.multifile_mode == MULTIPLE
+          s_m.add_item(NEXT_GROUP) {
+            facesvg_next()
+          }
+        end
         if corner_relief_available(selset)
           s_m.add_item(CORNER_RELIEF) {
             facesvg_corner_relief(selset)

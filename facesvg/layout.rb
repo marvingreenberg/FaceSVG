@@ -57,7 +57,7 @@ module FaceSVG
           # Get a surface (to calculate pocket offset if needed)
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |f| f.material == FaceSVG.surface }
-          # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
+          # Use transform if index nil? - means all svg in one file, SINGLE  TODO: figure out WTF this means
           faces.each { |f| svg.add_paths(g.transformation, f, surface) }
         end
         svg
