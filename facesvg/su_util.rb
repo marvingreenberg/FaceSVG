@@ -1,17 +1,31 @@
 Sketchup.require('facesvg/constants')
 Sketchup.require('matrix')
+Sketchup.require('logger')
 
 module FaceSVG
   extend self
+  def facesvg_dir(nocreate: false)
+    d = File.join(FileUtils.pwd, 'facesvg')
+    FileUtils.mkdir(d, mode: 0o755) unless nocreate || File.directory?(d)
+    d
+  end
+  @@filelog = Logger.new(File.join(facesvg_dir(), 'debug.log'))
+  @@filelog.datetime_format = '%H:%M:%S'
+
+  # Make a unique configuration for each model
+  @@cfgmap = Hash.new { |h, k| h[k] = Configuration.new }
 
   def same(num0, num1)
     (num0-num1).abs < TOLERANCE
   end
 
+  # Materials to mark faces during processing
   def marker; mk_material('svg_marker', 'red'); end
-  def annotation; mk_material('svg_annotation', CFG.annotation_color); end
-  def surface; mk_material('svg_surface', CFG.fill_color_outside); end
-  def pocket; mk_material('svg_pocket', CFG.fill_color_pocket); end
+  def surface; mk_material('svg_surface', CFG.fill_exterior_color); end
+  def pocket; mk_material('svg_pocket', [160, 160, 160]); end
+
+  # This seem unused for now
+  # def annotation; mk_material('svg_annotation', CFG.annotation_color); end
 
   def mk_material(name, color)
     m = Sketchup::active_model.materials[name]
@@ -42,8 +56,9 @@ module FaceSVG
   end
 
   def _show_and_reraise(excp)
-    UI.messagebox(
-      excp.to_s + "\n" + excp.backtrace.reject(&:empty?).join("\n*"))
+    msg = excp.to_s + "\n" + excp.backtrace.reject(&:empty?).join("\n*")
+    @@filelog.error(msg)
+    UI.messagebox(msg)
     raise
   end
 
@@ -87,96 +102,159 @@ module FaceSVG
       @default_dir = nil # not persistent
 
       # Undocumented settings
-      @debug = false
-      @annotation_color= 'blue'
-      @stroke_color = [0, 0, 0]
-      @fill_color_inside = [255, 255, 255]
-      @fill_color_outside = [0, 0, 0]
-      @fill_color_pocket = [165, 165, 165]
+      @confirmation_dialog = true
+      @debug = true
+      @annotation_color= [20, 110, 255] # "Shaper Blue"
+      @stroke_interior_color = [0, 0, 0]
+      @stroke_exterior_color = [0, 0, 0]
+      @fill_interior_color = [255, 255, 255]
+      @fill_exterior_color = [0, 0, 0]
+      @pocket_base_values = [85, 85, 85]
+      @fill_pocket_color = nil
+      @stroke_pocket_color = nil
 
       @units = FaceSVG.su_model_unit
       @corner_relief = CR_NONE
       @multifile_mode = SINGLE
-      if @units == INCHES
-        @bit_diameter = 0.25
-        @cut_depth = 0.25 # unused
-        @layout_spacing = 0.5 # 1/2" spacing
-        @layout_width = 24.0
-        @pocket_max = 0.76
-      else
-        @bit_diameter = 8.0.mm
-        @cut_depth = 5.0.mm # unused
-        @layout_spacing = 1.5.cm # 1/2" spacing
-        @layout_width = 625.mm
-        @pocket_max = 2.0.cm
-      end
+      # Keep separate dimension defaults for different settings
+      # Ruby hash/dict syntax and rules are insane
+      @dimensions = {
+        INCHES => {
+          BIT_DIAMETER => 0.25,
+          CUT_DEPTH => 0.25, # unused
+          LAYOUT_SPACING => 0.5, # 1/2" spacing
+          LAYOUT_WIDTH => 24.0,
+          POCKET_MAX => 0.76
+        },
+        MM => {
+          BIT_DIAMETER => 6.35,
+          CUT_DEPTH => 5.0, # unused
+          LAYOUT_SPACING => 1.5,
+          LAYOUT_WIDTH => 625.0,
+          POCKET_MAX => 20.0
+        }
+      }
+
       load()
     end
 
-    # Unset settings are just nil
-    def send(*args)
-      __send__(*args)
-    rescue NoMethodError
-      nil
+    # CFG always stored as INCHES or MM
+    def _unit() @units == INCHES ? INCHES : MM end
+    def _lbl(s) format('%s (%s.)', s, _unit()) end
+    # return the stored "native-dimension" attribute value
+    def _attr(name) @dimensions[_unit()][name] end
+    # Units always stored in INCHES or MM, converted to inches when used
+    def su_val(units, val)
+      units==INCHES && val.to_f || val.to_f/25.4
+    end
+    # get/set the attr value, returning value as SU inches-always units
+    def dimension(attr, val: nil)
+      u = _unit()
+      @dimensions[u][attr] = val if val
+      su_val(u, @dimensions[u][attr])
+    end
+    # labels, values and options for input box in main.
+    def labels()
+      [MULTIFILE_MODE, _lbl(LAYOUT_WIDTH), _lbl(LAYOUT_SPACING),
+       _lbl(POCKET_MAX), CORNER_RELIEF, _lbl(BIT_DIAMETER)]
+    end
+
+    def values()
+      [@multifile_mode, _attr(LAYOUT_WIDTH), _attr(LAYOUT_SPACING),
+       _attr(POCKET_MAX), @corner_relief, _attr(BIT_DIAMETER)]
+    end
+
+    def options()
+      [MULTIFILE_OPTIONS, '', '', '', CR_OPTIONS, '']
+    end
+
+    def inputs(inputvals)
+      (@multifile_mode, @layout_width, @layout_spacing,
+       @pocket_max, @corner_relief, @bit_diameter) = inputvals
     end
 
     # Don't save units, since that comes from the model
     def to_hash()
-      {
-        'bit_diameter' => @bit_diameter,
-        'cut_depth' => @cut_depth,
-        'corner_relief' => @corner_relief,
-        'layout_spacing' => @layout_spacing,
-        'layout_width' => @layout_width,
-        'pocket_max' => @pocket_max,
-        'debug' => @debug,
-        'annotation_color' => @annotation_color,
-        'stroke_color' => @stroke_color,
-        'fill_color_pocket' => @fill_color_pocket,
-        'fill_color_inside' => @fill_color_inside,
-        'fill_color_outside' => @fill_color_outside
-      }
+      Hash[instance_variables.reject { |var| var == :@units }
+                             .map { |var| [var.to_s, instance_variable_get(var)] } ]
     end
 
+    def save()
+      File.open(File.join(FaceSVG::facesvg_dir(), 'settings.json'), 'w') do |f|
+        f.write JSON.pretty_generate(to_hash(),
+                                     space: '', indent: ' ', array_nl: ' ')
+      end
+    end
     def load()
-      return unless File.file?('.facesvg/settings.json')
-      File.open('.facesvg/settings.json', 'r') { |f|
-        JSON.parse(f.read()).each do |name, val| send(name+'=', val) end
+      # overide defaults from saved settings
+      settings_file = File.join(FaceSVG::facesvg_dir(nocreate: true), 'settings.json')
+      return unless File.file?(settings_file)
+      File.open(settings_file, 'r') { |f|
+        JSON.parse(f.read()).each do |name, val|
+          instance_variable_set(name, val)
+        end
       }
     rescue StandardError => excp
-      UI.messagebox('Error loading settings: ' + FileUtils.pwd + '/.facesvg/settings.json: ' + excp.to_s)
+      UI.messagebox(format('Error loading settings, %s renamed: %s',
+                           settings_file, excp.to_s))
+      File.rename(settings_file, settings_file+'.err')
     end
 
-    attr_accessor :multifile_mode
-    attr_accessor :units
-    attr_accessor :bit_diameter
-    attr_accessor :cut_depth
-    attr_accessor :default_dir
-    attr_accessor :facesvg_version
-    attr_accessor :layout_spacing
-    attr_accessor :layout_width
-    attr_accessor :pocket_max
-    attr_accessor :corner_relief
+    # The accessor dimension() returns value in SU inches-always units
+    attr_accessor :dimensions
+    def bit_diameter() dimension(BIT_DIAMETER) end
+    def cut_depth() dimension(CUT_DEPTH) end
+    def layout_spacing() dimension(LAYOUT_SPACING) end
+    def layout_width() dimension(LAYOUT_WIDTH) end
+    def pocket_max() dimension(POCKET_MAX) end
+
+    def bit_diameter=(val) dimension(BIT_DIAMETER, val: val) end
+    def cut_depth=(val) dimension(CUT_DEPTH, val: val) end
+    def layout_spacing=(val) dimension(LAYOUT_SPACING, val: val) end
+    def layout_width=(val) dimension(LAYOUT_WIDTH, val: val) end
+    def pocket_max=(val) dimension(POCKET_MAX, val: val) end
+
+    # Save the config whenever default dir is changed
+    def default_dir=(val)
+      return if val != @default_dir
+      @default_dir = val
+      save()
+    end
+
+    # True if multiple files
+    def multifile_mode() @multifile_mode == MULTIPLE end
+
+    attr_reader :units
+    attr_reader :corner_relief
 
     # Undocumented settings
-    attr_accessor :stroke_color
-    attr_accessor :fill_color_inside
-    attr_accessor :fill_color_outside
-    attr_accessor :fill_color_pocket
-    attr_accessor :annotation_color
-    attr_accessor :debug
+    attr_reader :default_dir
+    attr_reader :confirmation_dialog
+    attr_reader :stroke_interior_color
+    attr_reader :stroke_exterior_color
+    attr_reader :fill_interior_color
+    attr_reader :fill_exterior_color
+    attr_reader :fill_pocket_color
+    attr_reader :annotation_color
+    attr_reader :debug
   end
 
-  # Global configuration instance
-  CFG = Configuration.new
+  # Access a configuration instance
+  def CFG()
+    # On Mac, can have multiple open models, keep Separate CFG for each (units could be different)
+    @@cfgmap[Sketchup.active_model.guid]
+  end
 
   # Simple debugging method
   if CFG.debug
     def dbg(fmt, *args)
-      puts format(fmt, *args)
+      @@filelog.debug(format(fmt+'\n', *args))
     end
   else
     def dbg(*args); end
+  end
+  def info(fmt, *args)
+    @@filelog.info(format(fmt+'\n', *args))
   end
 
   class Bounds
