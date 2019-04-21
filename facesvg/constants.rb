@@ -36,7 +36,7 @@ module FaceSVG
   MULTIFILE_OPTIONS = [MULTIPLE, SINGLE].join('|')
   LAYOUT_WIDTH = 'Layout Width'.freeze
   LAYOUT_SPACING = 'Layout Spacing'.freeze
-  POCKET_MAX = 'Pocket offset (max)'.freeze
+  POCKET_MAX = 'Pocket max'.freeze
   CUT_DEPTH = 'Cut Depth'.freeze
   CORNER_RELIEF = 'Corner Relief'.freeze
   CR_SYMMETRIC = 'Symmetric'.freeze
@@ -55,9 +55,9 @@ module FaceSVG
   WRITE_SVG = 'Write SVG Profile(s)'.freeze
   NEXT_GROUP = 'Next SVG Profile'.freeze
   SVG_OUTPUT_FILE = 'SVG output file'.freeze
+  SVG_OUTPUT_DIRECTORY = 'Choose SVG output directory'.freeze
 
-  PROFILE_GROUP = 'SVG Profile Group'.freeze # group name
-  PROFILE_LAYER = 'SVG Profile'.freeze # layer name
+  PROFILE_LAYER = 'FaceSVG Profile'.freeze # layer name
 
   # For comparisons in the code
   # Sketchup has some situations, like small

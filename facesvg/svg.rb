@@ -297,33 +297,47 @@ module FaceSVG
         if kind == PK_EXTERIOR
           @attributes = {
             SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format(FMT, cut_depth),
-            FILL => black }
+            FILL => _rgb(CFG.fill_exterior_color), STROKE => _rgb(CFG.stroke_exterior_color) }
         elsif kind == PK_INTERIOR
           @attributes = {
             SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format(FMT, cut_depth),
-            FILL => white, STROKE => black, STROKE_WIDTH => '2',
-            VECTOR_EFFECT => VE_NON_SCALING_STROKE }
+            FILL => _rgb(CFG.fill_interior_color), STROKE => _rgb(CFG.stroke_interior_color),
+            STROKE_WIDTH => '2', VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         elsif kind == PK_POCKET
           @attributes = {
             SHAPER_PATH_TYPE => kind,  SHAPER_CUT_DEPTH => format(FMT, cut_depth),
-            FILL_RULE => EVENODD, FILL => gray(cut_depth),
-            STROKE_WIDTH => '2', STROKE =>  gray(cut_depth),
+            FILL_RULE => EVENODD, FILL => pocket_fill(cut_depth),
+            STROKE_WIDTH => '2', STROKE =>  pocket_stroke(cut_depth),
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         else # PK_GUIDE, let's not fill, could be problematic
           @attributes = { SHAPER_PATH_TYPE => kind,
-            STROKE_WIDTH => '2', STROKE => blue,
+            STROKE_WIDTH => '2', STROKE => CFG.annotation_color,
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         end
       end
-      def white; 'rgb(255,255,255)'; end
-      def black; 'rgb(0,0,0)'; end
-      # blue extracted from example Shaper.png
-      def blue; 'rgb(20,110,255)'; end
-      def gray(depth)
-        # Scale the "grayness" based on depth.  Supposedly SO will
-        # recognize from 60,60,60 to 180,180,180 as gray (maybe more?)
-        gray = 70 + [(100.0*depth/CFG.pocket_max).to_int, 100].min
-        "rgb(#{gray},#{gray},#{gray})"
+      # For pocket fills, if a color is set use it.  Else return graded
+      # color from base, by depth, deeper are lighter
+      # Supposedly SO will recognize from 60,60,60 to 180,180,180 as gray
+      def color_range(depth)
+        offs = [100.0*depth/CFG.pocket_max, 100].min.to_int
+        _rgb(CFG.pocket_color_values.map { |x| [0, x+offs].min })
+      rescue
+        return 'rgb(165,165,165)'
+      end
+      def pocket_stroke(depth)
+        return _rgb(CFG.stroke_pocket_color) if CFG.stroke_pocket_color
+        color_range(depth)
+      end
+      def pocket_fill(depth)
+        return _rgb(CFG.fill_pocket_color) if CFG.fill_pocket_color
+        color_range(depth)
+      end
+      # return array as rgb color string, or string that was set
+      def _rgb(val)
+        val.is_a?(String) ? val : format('rgb(%i,%i,%i)', *val)
+      rescue => excp
+        FaceSVG.dbg('Unexpected - getting representing %s as color: %s', val, excp)
+        'purple' # indicate something on error
       end
       # implicit conversion to hash
       def to_hash; @attributes; end
