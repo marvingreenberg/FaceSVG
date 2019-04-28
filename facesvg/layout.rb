@@ -32,10 +32,13 @@ module FaceSVG
       # Used to transform the points in a face loop, and find the min,max x,y in
       #   the z=0 plane
       def initialize()
+        clrgrps()
+        current_profilegrp(initializing: true) # will update @profilegrp_name if any exist
+      end
+      def clrgrps()
         @layoutx, @layouty = [0.0, 0.0]
         @rowheight = 0.0
         @profilegrp_name = nil # Initial group. No groups
-        current_profilegrp(initializing: true) # will update @profilegrp_name if any exist
       end
       ################
       def reset
@@ -47,7 +50,7 @@ module FaceSVG
           FaceSVG.dbg('Remove %s', g)
           Sketchup.active_model.entities.erase_entities(g) if g.valid?
         end
-        @profilegrp_name = nil
+        clrgrps()
       end
       ################
       def empty?()
@@ -104,7 +107,6 @@ module FaceSVG
         bnds = Bounds.new.update(*grps)
         viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
         svg = SVG::Canvas.new(name, viewport, FaceSVG::cfg().units)
-
         svg.title(format('%s cut profile', modelname))
         svg.desc(format('Shaper cut profile from Sketchup model %s', modelname))
 
@@ -134,12 +136,15 @@ module FaceSVG
         profgrps = FaceSVG::Layout::profilegrps()
         is_multi = multi?(profgrps)
         if is_multi
+          # Write SVG files into a directory named <modelname>_svgs
           of_dir = UI.select_directory(title: SVG_OUTPUT_DIRECTORY,
                                        directory: FaceSVG::cfg().default_dir)
+          model_dir = "#{modelname}_svgs"
+          of_dir = File.join(of_dir, model_dir) unless of_dir.endwsith(model_dir)
           of_path = File.join(of_dir, '%s.svg') # filename substituted for each grp
         else
           of_path = UI.savepanel(SVG_OUTPUT_FILE, FaceSVG::cfg().default_dir, "#{modelname}.svg")
-          of_dir = File.dirname(of_path)
+          of_dir = File.dirname(of_path) if of_path
         end
         return false if of_path.nil?
 
@@ -169,7 +174,6 @@ module FaceSVG
         grp_name = curr_profilegrp.name
         grp_layer = curr_profilegrp.layer
         curr_profilegrp.layer = Sketchup.active_model.layers[0]
-        FaceSVG.dbg("Add #{facegrp} to #{curr_profilegrp}")
         new_profilegrp = Sketchup.active_model.entities.add_group(curr_profilegrp.explode + [facegrp])
         # reset to orignal layer, name
         new_profilegrp.layer = grp_layer

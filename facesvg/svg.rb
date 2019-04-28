@@ -297,7 +297,8 @@ module FaceSVG
         if kind == PK_EXTERIOR
           @attributes = {
             SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format(FMT, cut_depth),
-            FILL => _rgb(FaceSVG::cfg().fill_exterior_color), STROKE => _rgb(FaceSVG::cfg().stroke_exterior_color) }
+            FILL => _rgb(FaceSVG::cfg().fill_exterior_color), STROKE => _rgb(FaceSVG::cfg().stroke_exterior_color),
+            STROKE_WIDTH => '2', VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         elsif kind == PK_INTERIOR
           @attributes = {
             SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format(FMT, cut_depth),

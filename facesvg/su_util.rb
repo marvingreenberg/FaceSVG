@@ -260,6 +260,9 @@ module FaceSVG
   def info(fmt, *args)
     @@filelog.info(format(fmt+'\n', *args))
   end
+  def error(fmt, *args)
+    @@filelog.error(format(fmt+'\n', *args))
+  end
 
   class Bounds
     # Convenience wrapper around a bounding box, accumulate the bounds
@@ -374,8 +377,6 @@ module FaceSVG
 
       # Finally, explode the original face, back to as it was
       tmp.explode
-
-      FaceSVG.dbg("capture_faceprofiles: #{related_faces}, #{bnds}")
       yield related_faces, bnds
     end
   end
