@@ -1,0 +1,30 @@
+in.
+mm.
+cm.
+
+interior
+exterior
+pocket
+guide
+
+file
+multiple file
+multiple
+single
+width
+layout
+layout spacing
+cut depth
+depth
+corner relief
+symmetric
+asymmetric
+automatic
+none
+drill bit
+diameter
+reset
+settings
+write
+profile
+group

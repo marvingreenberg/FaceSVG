@@ -1,0 +1,30 @@
+dans.
+mm.
+cm.
+
+intérieur
+extérieur
+poche
+guider
+
+fichier
+fichier multiple
+plusieurs
+seul
+largeur
+disposition
+espacement de la disposition
+profondeur de coupe
+profondeur
+coin en relief
+symétrique
+asymétrique
+automatique
+aucun
+foret
+diamètre
+réinitialiser
+réglages
+écrire
+profil
+groupe

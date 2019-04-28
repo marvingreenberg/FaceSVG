@@ -1,0 +1,30 @@
+en.
+mm.
+cm.
+
+interior
+exterior
+bolsillo
+guía
+
+"file"
+archivo múltiple
+múltiple
+soltero
+anchura
+diseño
+espaciado del diseño
+profundidad de corte
+profundidad
+alivio de la esquina
+simétrico
+asimétrico
+automático
+ninguna
+broca
+diámetro
+Reiniciar
+ajustes
+escribir
+perfil
+grupo
