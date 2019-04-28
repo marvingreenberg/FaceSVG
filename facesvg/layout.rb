@@ -57,8 +57,8 @@ module FaceSVG
       def load_attrs(grp)
         attr_dict = grp.attribute_dictionary(FACESVG_STATE, true)
         # Adjust the layout position if group is moved
-        @layoutx = attr_dict[LAYOUTX] || CFG.layout_spacing
-        @layouty = attr_dict[LAYOUTY] || CFG.layout_spacing
+        @layoutx = attr_dict[LAYOUTX] || FaceSVG::cfg().layout_spacing
+        @layouty = attr_dict[LAYOUTY] || FaceSVG::cfg().layout_spacing
         @rowheight = attr_dict[ROWHEIGHT] || 0.0
         @profilegrp_name = grp.name
       end
@@ -103,7 +103,7 @@ module FaceSVG
         FaceSVG.dbg('makesvg: %s %s', name, modelname)
         bnds = Bounds.new.update(*grps)
         viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
-        svg = SVG::Canvas.new(name, viewport, CFG.units)
+        svg = SVG::Canvas.new(name, viewport, FaceSVG::cfg().units)
 
         svg.title(format('%s cut profile', modelname))
         svg.desc(format('Shaper cut profile from Sketchup model %s', modelname))
@@ -118,30 +118,44 @@ module FaceSVG
         svg
       end
       ################
-      def write
+      def multi?(grps)
+        is_multi = FaceSVG::cfg().multifile_mode?
+        if grps.size > 1 && !is_multi
+          is_multi = true
+          UI.messagebox(format('Writing multiple files: found multiple groups: %s',
+                               grps.map(&:name).join(', ')))
+        end
+        is_multi
+      end
+
+      def write()
         # UI: write any layed out profiles as svg
         modelname = Sketchup.active_model.title
-        prompt = CFG.multifile_mode ? '<name-ignored>.svg' : "#{modelname}.svg"
-
-        # Path, with <%multi> (replaced later) if MULTIPLE multifile_mode
-        panel_title = CFG.multifile_mode ? SVG_OUTPUT_DIRECTORY : SVG_OUTPUT_FILE
-        of_path = UI.savepanel(panel_title, CFG.default_dir, prompt)
+        profgrps = FaceSVG::Layout::profilegrps()
+        is_multi = multi?(profgrps)
+        if is_multi
+          of_dir = UI.select_directory(title: SVG_OUTPUT_DIRECTORY,
+                                       directory: FaceSVG::cfg().default_dir)
+          of_path = File.join(of_dir, '%s.svg') # filename substituted for each grp
+        else
+          of_path = UI.savepanel(SVG_OUTPUT_FILE, FaceSVG::cfg().default_dir, "#{modelname}.svg")
+          of_dir = File.dirname(of_path)
+        end
         return false if of_path.nil?
 
-        CFG.default_dir = File.dirname(of_path)
+        FaceSVG::cfg().default_dir = of_dir
         ofiles = []
-        FaceSVG::Layout::profilegrps().each do |pg|
-          name = CFG.multifile_mode ? "#{pg.name}.svg" : File.basename(outpath)
-          outpath = File.join(CFG.default_dir, name)
-          ofiles << name
-          FaceSVG.dbg('Writing %s', name)
+        profgrps.each do |pg|
+          outpath = format(of_path, pg.name)
+          ofiles << File.basename(outpath)
+          FaceSVG.dbg('Writing %s', outpath)
           grps = pg.entities.grep(Sketchup::Group)
           File.open(outpath, 'w') do |file|
-            svg = makesvg(name, modelname, *grps)
+            svg = makesvg(pg.name, modelname, *grps)
             svg.write(file)
           end
         end
-        UI.messagebox("In #{odir}, wrote #{ofiles}") if CFG.confirmation_dialog
+        UI.messagebox("In #{of_dir}, wrote #{ofiles}") if FaceSVG::cfg().confirmation_dialog
       end
       ################
       def process_selection(selset)
@@ -155,6 +169,7 @@ module FaceSVG
         grp_name = curr_profilegrp.name
         grp_layer = curr_profilegrp.layer
         curr_profilegrp.layer = Sketchup.active_model.layers[0]
+        FaceSVG.dbg("Add #{facegrp} to #{curr_profilegrp}")
         new_profilegrp = Sketchup.active_model.entities.add_group(curr_profilegrp.explode + [facegrp])
         # reset to orignal layer, name
         new_profilegrp.layer = grp_layer
@@ -163,17 +178,17 @@ module FaceSVG
       end
       ################
       def next_position(bnds, currgrp)
-        @layoutx += CFG.layout_spacing + bnds.width
+        @layoutx += FaceSVG::cfg().layout_spacing + bnds.width
         # As each element is layed out horizontally, keep track of the tallest bit
         @rowheight = [@rowheight, bnds.height].max
-        next_row() if @layoutx > CFG.layout_width
+        next_row() if @layoutx > FaceSVG::cfg().layout_width
         updt_attrs(currgrp) # update the group attribute_dictionary as attrs are changed
         FaceSVG.dbg('Updated layout attrs %s %s %s', @layoutx, @layouty, @rowheight)
       end
       ################
       def next_row()
-        @layoutx = 0.0 + CFG.layout_spacing
-        @layouty += CFG.layout_spacing + @rowheight
+        @layoutx = 0.0 + FaceSVG::cfg().layout_spacing
+        @layouty += FaceSVG::cfg().layout_spacing + @rowheight
         @rowheight = 0.0
       end
       ################
@@ -191,13 +206,14 @@ module FaceSVG
           Sketchup.active_model.entities.transform_entities(layout_xf, new_entities)
 
           newfacegrp = currgrp.entities.add_group(new_entities)
+          FaceSVG.dbg("layout_facegrps: create new facegrp #{newfacegrp} with #{new_entities}")
 
           # Handle automatic corner relief
-          if CFG.corner_relief == CR_SYMMETRIC_AUTO
+          if FaceSVG::cfg().corner_relief == CR_SYMMETRIC_AUTO
             surface_faces = new_entities.grep(Sketchup::Face)
                                         .select { |f| f.material == FaceSVG.surface }
-            Relief.relieve_face_corners(*surface_faces, CFG.bit_diameter/2, auto: true)
-            FaceSVG.dbg('layout_facegrps: applied corner relief: %s', CFG.corner_relief)
+            Relief.relieve_face_corners(*surface_faces, FaceSVG::cfg().bit_size/2, auto: true)
+            FaceSVG.dbg('layout_facegrps: applied corner relief: %s', FaceSVG::cfg().corner_relief)
           end
 
           # Possible efficiency improvment, add all the new groups at once? Instead of one at a time

@@ -21,11 +21,11 @@ module FaceSVG
 
   # Materials to mark faces during processing
   def marker; mk_material('svg_marker', 'red'); end
-  def surface; mk_material('svg_surface', CFG.fill_exterior_color); end
+  def surface; mk_material('svg_surface', cfg().fill_exterior_color); end
   def pocket; mk_material('svg_pocket', [160, 160, 160]); end
 
   # This seem unused for now
-  # def annotation; mk_material('svg_annotation', CFG.annotation_color); end
+  # def annotation; mk_material('svg_annotation', cfg().annotation_color); end
 
   def mk_material(name, color)
     m = Sketchup::active_model.materials[name]
@@ -92,7 +92,7 @@ module FaceSVG
     proc { |other|
       (face.normal % other.normal ==
         face.normal.length * other.normal.length) &&
-        face_offset(face, other) < CFG.pocket_max
+        face_offset(face, other) < cfg().pocket_max
     }
   end
 
@@ -113,21 +113,20 @@ module FaceSVG
       @fill_pocket_color = nil
       @stroke_pocket_color = nil
 
-      @units = FaceSVG.su_model_unit
       @corner_relief = CR_NONE
-      @multifile_mode = SINGLE
+      @file_mode = SINGLE
       # Keep separate dimension defaults for different settings
       # Ruby hash/dict syntax and rules are insane
       @dimensions = {
         INCHES => {
-          BIT_DIAMETER => 0.25,
+          BIT_SIZE => 0.25,
           CUT_DEPTH => 0.25, # unused
           LAYOUT_SPACING => 0.5, # 1/2" spacing
           LAYOUT_WIDTH => 24.0,
           POCKET_MAX => 0.76
         },
         MM => {
-          BIT_DIAMETER => 6.35,
+          BIT_SIZE => 6.35,
           CUT_DEPTH => 5.0, # unused
           LAYOUT_SPACING => 1.5,
           LAYOUT_WIDTH => 625.0,
@@ -139,7 +138,7 @@ module FaceSVG
     end
 
     # CFG always stored as INCHES or MM
-    def _unit() @units == INCHES ? INCHES : MM end
+    def _unit() FaceSVG::su_model_unit == INCHES ? INCHES : MM end
     def _lbl(s) format('%s (%s.)', s, _unit()) end
     # return the stored "native-dimension" attribute value
     def _attr(name) @dimensions[_unit()][name] end
@@ -155,28 +154,34 @@ module FaceSVG
     end
     # labels, values and options for input box in main.
     def labels()
-      [MULTIFILE_MODE, _lbl(LAYOUT_WIDTH), _lbl(LAYOUT_SPACING),
-       _lbl(POCKET_MAX), CORNER_RELIEF, _lbl(BIT_DIAMETER)]
+      [_lbl(LAYOUT_WIDTH), _lbl(LAYOUT_SPACING),
+       _lbl(POCKET_MAX), CORNER_RELIEF, _lbl(BIT_SIZE),
+       FILE_MODE]
     end
 
     def values()
-      [@multifile_mode, _attr(LAYOUT_WIDTH), _attr(LAYOUT_SPACING),
-       _attr(POCKET_MAX), @corner_relief, _attr(BIT_DIAMETER)]
+      [_attr(LAYOUT_WIDTH), _attr(LAYOUT_SPACING),
+       _attr(POCKET_MAX), @corner_relief, _attr(BIT_SIZE),
+       @file_mode]
     end
 
     def options()
-      [MULTIFILE_OPTIONS, '', '', '', CR_OPTIONS, '']
+      ['', '', '', CR_OPTIONS, '', FILE_OPTIONS]
     end
 
     def inputs(inputvals)
-      (@multifile_mode, @layout_width, @layout_spacing,
-       @pocket_max, @corner_relief, @bit_diameter) = inputvals
+      (layout_width, layout_spacing,
+       pocket_max, @corner_relief, bit_size, @file_mode) = inputvals
+      # Ruby syntax is a mess
+      dimension(LAYOUT_WIDTH, val: layout_width)
+      dimension(LAYOUT_SPACING, val: layout_spacing)
+      dimension(POCKET_MAX, val: pocket_max)
+      dimension(BIT_SIZE, val: bit_size)
     end
 
     # Don't save units, since that comes from the model
     def to_hash()
-      Hash[instance_variables.reject { |var| var == :@units }
-                             .map { |var| [var.to_s, instance_variable_get(var)] } ]
+      Hash[instance_variables.map { |var| [var.to_s, instance_variable_get(var)] }]
     end
 
     def save()
@@ -202,14 +207,13 @@ module FaceSVG
 
     # The accessor dimension() returns value in SU inches-always units
     attr_accessor :dimensions
-    def bit_diameter() dimension(BIT_DIAMETER) end
+    def bit_size() dimension(BIT_SIZE) end
     def cut_depth() dimension(CUT_DEPTH) end
     def layout_spacing() dimension(LAYOUT_SPACING) end
     def layout_width() dimension(LAYOUT_WIDTH) end
     def pocket_max() dimension(POCKET_MAX) end
 
-    def bit_diameter=(val) dimension(BIT_DIAMETER, val: val) end
-    def cut_depth=(val) dimension(CUT_DEPTH, val: val) end
+    def bit_size=(val) dimension(BIT_SIZE, val: val) end
     def layout_spacing=(val) dimension(LAYOUT_SPACING, val: val) end
     def layout_width=(val) dimension(LAYOUT_WIDTH, val: val) end
     def pocket_max=(val) dimension(POCKET_MAX, val: val) end
@@ -222,7 +226,7 @@ module FaceSVG
     end
 
     # True if multiple files
-    def multifile_mode() @multifile_mode == MULTIPLE end
+    def multifile_mode?() @file_mode == MULTIPLE end
 
     attr_reader :units
     attr_reader :corner_relief
@@ -240,13 +244,13 @@ module FaceSVG
   end
 
   # Access a configuration instance
-  def CFG()
+  def cfg()
     # On Mac, can have multiple open models, keep Separate CFG for each (units could be different)
     @@cfgmap[Sketchup.active_model.guid]
   end
 
   # Simple debugging method
-  if CFG.debug
+  if cfg().debug
     def dbg(fmt, *args)
       @@filelog.debug(format(fmt+'\n', *args))
     end
@@ -371,6 +375,7 @@ module FaceSVG
       # Finally, explode the original face, back to as it was
       tmp.explode
 
+      FaceSVG.dbg("capture_faceprofiles: #{related_faces}, #{bnds}")
       yield related_faces, bnds
     end
   end

@@ -15,7 +15,7 @@ module FaceSVG
     AUTO_SYMMETRIC_MAX = 2.0
 
     def relieve_corners(selset)
-      radius = CFG.bit_diameter/2.0
+      radius = FaceSVG::cfg().bit_size/2.0
       # There may be faces selected, or edges
       faces = selset.grep(Sketchup::Face)
       if faces.empty?
@@ -28,7 +28,7 @@ module FaceSVG
     end
 
     def relieve_face_corners(*faces, radius, auto: false)
-      raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, 'face') if CR_ASYMMETRIC == CFG.corner_relief
+      raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, 'face') if CR_ASYMMETRIC == FaceSVG::cfg().corner_relief
       # Not asymmetric, must be symmetric
       # TODO: If only outer loop, relieve outside corners.
       failures = faces.map { |f|
@@ -38,7 +38,7 @@ module FaceSVG
     end
 
     def relieve_edge_corners(*edges, radius)
-      if CR_ASYMMETRIC == CFG.corner_relief
+      if CR_ASYMMETRIC == FaceSVG::cfg().corner_relief
         raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, edges.size) if edges.size != 1
         asymmetric_relief(edges[0], inner_loop_with(edges[0]), radius)
       else

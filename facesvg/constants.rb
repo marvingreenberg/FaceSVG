@@ -30,22 +30,22 @@ module FaceSVG
   VE_NON_SCALING_STROKE = 'non-scaling-stroke'.freeze
 
   # Options
-  MULTIFILE_MODE = 'Multifile Mode'.freeze
+  FILE_MODE = 'File Mode'.freeze
   MULTIPLE = 'Multiple'.freeze
   SINGLE = 'Single'.freeze
-  MULTIFILE_OPTIONS = [MULTIPLE, SINGLE].join('|')
-  LAYOUT_WIDTH = 'Layout Width'.freeze
-  LAYOUT_SPACING = 'Layout Spacing'.freeze
-  POCKET_MAX = 'Pocket max'.freeze
-  CUT_DEPTH = 'Cut Depth'.freeze
+  FILE_OPTIONS = [MULTIPLE, SINGLE].join('|')
+  LAYOUT_WIDTH = 'Layout_Width'.freeze
+  LAYOUT_SPACING = 'Spacing'.freeze
+  POCKET_MAX = 'Max_Pocket'.freeze
   CORNER_RELIEF = 'Corner Relief'.freeze
   CR_SYMMETRIC = 'Symmetric'.freeze
   CR_ASYMMETRIC = 'Asymmetric'.freeze
-  CR_SYMMETRIC_AUTO = 'Symmetric, automatic'.freeze
+  CR_SYMMETRIC_AUTO = 'Auto, Symmetric'.freeze
   CR_NONE = 'None'.freeze
   CR_OPTIONS = [CR_NONE, CR_SYMMETRIC, CR_ASYMMETRIC,
                 CR_SYMMETRIC_AUTO].join('|')
-  BIT_DIAMETER = 'Bit Diameter'.freeze
+  BIT_SIZE = 'Bit_Size'.freeze
+  CUT_DEPTH = 'Cut_Depth'.freeze
 
   # Menus
   SETTINGS = 'Settings'.freeze
@@ -53,7 +53,7 @@ module FaceSVG
   LAYOUT_SVG = 'Layout SVG Profile'.freeze
   RESET_LAYOUT = 'Reset layout'.freeze
   WRITE_SVG = 'Write SVG Profile(s)'.freeze
-  NEXT_GROUP = 'Next SVG Profile'.freeze
+  NEXT_GROUP = 'Next SVG Group'.freeze
   SVG_OUTPUT_FILE = 'SVG output file'.freeze
   SVG_OUTPUT_DIRECTORY = 'Choose SVG output directory'.freeze
 

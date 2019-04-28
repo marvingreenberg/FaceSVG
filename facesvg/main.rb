@@ -40,7 +40,7 @@ module FaceSVG
   end
 
   def corner_relief_available(selset)
-    CFG.corner_relief != CR_NONE && (
+    FaceSVG::cfg().corner_relief != CR_NONE && (
       selset.find { |e| e.is_a?(Sketchup::Edge) || e.is_a?(Sketchup::Face) })
   end
   def facesvg_corner_relief(selset)
@@ -67,12 +67,12 @@ module FaceSVG
 
   def facesvg_settings
     title = format('%s %s %s', FACESVG, VERSION, SETTINGS)
-    inputs = UI.inputbox(CFG.labels, CFG.values, CFG.options, title)
+    inputs = UI.inputbox(FaceSVG::cfg().labels, FaceSVG::cfg().values, FaceSVG::cfg().options, title)
 
     if inputs
-      CFG.inputs(inputs)
+      FaceSVG::cfg().inputs(inputs)
       # Just keep settings in a simple place, no Sketchup support
-      CFG.save()
+      FaceSVG::cfg().save()
     end
   rescue => excp
     _show_and_reraise(excp)
@@ -80,14 +80,11 @@ module FaceSVG
 
   unless file_loaded?(__FILE__)
     begin
-      # No point to static menu for now
-      # menu = UI.menu('Plugins')
-      # menu.add_item('FaceSVG 2D Layout') {
-      #   facesvg_2d_layout
-      # }
-      # menu.add_item('FaceSVG Settings') {
-      #   facesvg_settings
-      # }
+      # Add help menu
+      menu = UI.menu('Plugins')
+      menu.add_item('FaceSVG Help') {
+        UI.openURL('https://github.com/marvingreenberg/FaceSVG/wiki/Documentation')
+      }
 
       UI.add_context_menu_handler do |context_menu|
         selset = Sketchup.active_model.selection
@@ -101,7 +98,7 @@ module FaceSVG
           }
         end
 
-        if CFG.multifile_mode
+        if FaceSVG::cfg().multifile_mode?()
           s_m.add_item(NEXT_GROUP) {
             facesvg_next()
           }
