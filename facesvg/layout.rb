@@ -130,6 +130,12 @@ module FaceSVG
         is_multi
       end
 
+      def multi_dir(modelname, of_dir)
+        model_dir = "#{modelname}_svgs"
+        of_dir = File.join(of_dir, model_dir) unless of_dir.end_with?(model_dir)
+        FileUtils.mkdir(of_dir, mode: 0o755) unless File.directory?(of_dir)
+        of_dir
+      end
       def write()
         # UI: write any layed out profiles as svg
         modelname = Sketchup.active_model.title
@@ -137,12 +143,13 @@ module FaceSVG
         is_multi = multi?(profgrps)
         if is_multi
           # Write SVG files into a directory named <modelname>_svgs
-          of_dir = UI.select_directory(title: SVG_OUTPUT_DIRECTORY,
-                                       directory: FaceSVG::cfg().default_dir)
-          model_dir = "#{modelname}_svgs"
-          of_dir = File.join(of_dir, model_dir) unless of_dir.end_with?(model_dir)
+          of_dir = multi_dir(
+            modelname,
+            UI.select_directory(title: SVG_OUTPUT_DIRECTORY,
+                                directory: FaceSVG::cfg().default_dir))
           of_path = File.join(of_dir, '%s.svg') # filename substituted for each grp
         else
+          # Write SVG file into the prompted file location
           of_path = UI.savepanel(SVG_OUTPUT_FILE, FaceSVG::cfg().default_dir, "#{modelname}.svg")
           of_dir = File.dirname(of_path) if of_path
         end
