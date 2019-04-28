@@ -140,7 +140,7 @@ module FaceSVG
           of_dir = UI.select_directory(title: SVG_OUTPUT_DIRECTORY,
                                        directory: FaceSVG::cfg().default_dir)
           model_dir = "#{modelname}_svgs"
-          of_dir = File.join(of_dir, model_dir) unless of_dir.endwsith(model_dir)
+          of_dir = File.join(of_dir, model_dir) unless of_dir.end_with?(model_dir)
           of_path = File.join(of_dir, '%s.svg') # filename substituted for each grp
         else
           of_path = UI.savepanel(SVG_OUTPUT_FILE, FaceSVG::cfg().default_dir, "#{modelname}.svg")
