@@ -172,11 +172,10 @@ module FaceSVG
         @root = Node
                 .new('svg',
                      attrs: {
-                       'enable-background' => format(BKGBOX, @minx, @miny, @maxx, @maxy),
                        'height' => format("#{FMT}#{@unit}", @height),
                        'width' => format("#{FMT}#{@unit}", @width),
                        'version' => '1.1', # SVG VERSION
-                       'viewBox' => format(VIEWBOX, @minx, @miny, @maxx, @maxy),
+                       'viewBox' => format(VIEWBOX, @minx, @miny, @width, @height),
                        'x' => format("#{FMT}#{@unit}", @minx),
                        'y' => format("#{FMT}#{@unit}", @minx),
                        'xmlns' => 'http://www.w3.org/2000/svg',
