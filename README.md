@@ -1,5 +1,8 @@
 # SVG Face Export - Sketchup plugin compatible with Shaper Origin
 
+**Note: Release 2.3.0 has an important fix to a problem where the viewBox could be generated incorrectly, which
+could cause problems with how the SVG was interpreted**
+
 This is a plugin for Sketchup to generate an SVG outline from selected faces.  The plugin adds a couple operations to the "context menu" (right click) when a face is selected or to select the current face. "Layout SVG profile" copies the selected (and related) faces in to a special "SVG Profile" group.  "Write SVG profile" converts the edges of these faces into SVG paths, with the fill set according the the guidelines outlined by *Shaper Origin* for exterior and interior cuts profiles, and for "pocket" cuts.  New to this release, added support for pocket cuts, and the ability to manually edit and change the layout from within Sketchup.
 
 For a detailed description of how to use the plugin see the [Documentation](https://github.com/marvingreenberg/FaceSVG/wiki/Documentation).
