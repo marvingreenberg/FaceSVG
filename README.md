@@ -9,7 +9,7 @@ For a detailed description of how to use the plugin see the [Documentation](http
 
 Go to https://github.com/marvingreenberg/FaceSVG/releases for download links for the ruby '.rbz' plugin.
 
-**If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via** [paypal.me/marvingreenberg/18](https://paypal.me/marvingreenberg/18).  (You know, one roll of shaper tape)
+~~If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via &lt;deleted&gt;.  (You know, one roll of shaper tape)~~
 
 See the YouTube video to see its operation.
 
