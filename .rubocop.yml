@@ -1,13 +1,20 @@
 AllCops:
-  TargetRubyVersion: 2.1
+  TargetRubyVersion: 2.7
+  NewCops: enable
 
 # Figure out WTF is providing format(), make use of '%' disappear?
 
-Metrics/LineLength:
+Layout/LineLength:
   Max: 120
 
 Metrics/MethodLength:
   Max: 40
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10
 
 Metrics/ParameterLists:
   Max: 8
@@ -61,7 +68,7 @@ Style/Documentation:
 Style/ParallelAssignment:
   Enabled: false
 
-Layout/AlignHash:
+Layout/HashAlignment:
   Enabled: false
 
 Style/ModuleFunction:
@@ -90,6 +97,9 @@ Style/SingleLineMethods:
 
 Layout/EmptyLineBetweenDefs:
   Enabled: false
+
+Style/RedundantFileExtensionInRequire:
+    Enabled: false
 
 Style/MethodCallWithoutArgsParentheses:
   Enabled: false

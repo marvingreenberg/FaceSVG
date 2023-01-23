@@ -1,6 +1,8 @@
-###########################################################
+# frozen_string_literal: true
+
+##########################################################
 # Licensed under the MIT license
-###########################################################
+##########################################################
 require 'sketchup'
 require 'extensions'
 require 'LangHandler'
@@ -49,15 +51,8 @@ module FaceSVG
         @bit_diameter = 8.0.mm
       end
     end
-    attr_accessor :units
-    attr_accessor :bit_diameter
-    attr_accessor :cut_depth
-    attr_accessor :default_dir
-    attr_accessor :facesvg_version
-    attr_accessor :layout_spacing
-    attr_accessor :layout_width
-    attr_accessor :pocket_max
-    attr_accessor :corner_relief
+    attr_accessor :units, :bit_diameter, :cut_depth, :default_dir, :facesvg_version, :layout_spacing, :layout_width,
+                  :pocket_max, :corner_relief
   end
 
   CFG = Configuration.new
@@ -110,8 +105,8 @@ module FaceSVG
       (CFG.layout_width, CFG.layout_spacing, CFG.pocket_max,
         CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter) = inputs
     end
-  rescue => excp
-    _show_and_reraise(excp)
+  rescue => e
+    _show_and_reraise(e)
   end
 
   unless file_loaded?(__FILE__)
@@ -149,8 +144,8 @@ module FaceSVG
       @@context_menu_set = true
       # UI.messagebox "Loaded #{__FILE__}", MB_OK (debugging only)
       file_loaded(__FILE__)
-    rescue => excp
-      _show_and_reraise(excp)
+    rescue => e
+      _show_and_reraise(e)
     end
   end
 end

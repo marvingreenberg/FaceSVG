@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Sketchup.require('facesvg/constants')
 Sketchup.require('facesvg/su_util')
 Sketchup.require('facesvg/reorder') # for reorder function and Line/Arc classes
@@ -6,8 +8,6 @@ module FaceSVG
   module SVG
     extend self
 
-    FMT = '%0.4f'.freeze
-
     def V2d(*args)
       args = args[0].to_a if args.size == 1
       Vn.new(args[0, 2])
@@ -15,14 +15,14 @@ module FaceSVG
 
     class Vn < Array
       # A simple vector supporting scalar multiply and vector add, % dot product, magnitude
-      def initialize(elts); concat(elts); end
+      def initialize(elts); concat(elts); end # rubocop:disable Lint/MissingSuper
       def *(scalar); Vn.new(map { |c| c * scalar }); end
-      def +(v2); Vn.new(zip(v2).map { |c, v| c + v }); end
-      def -(v2); Vn.new(zip(v2).map { |c, v| c - v }); end
-      def dot(v2); zip(v2).map { |c, v| c * v }.reduce(:+); end
+      def +(vec2); Vn.new(zip(vec2).map { |c, v| c + v }); end
+      def -(vec2); Vn.new(zip(vec2).map { |c, v| c - v }); end
+      def dot(vec2); zip(vec2).map { |c, v| c * v }.reduce(:+); end
       def abs(); map { |c| c * c }.reduce(:+)**0.5; end
-      def ==(v2); FaceSVG.same((self - v2).abs, 0.0); end
-      def inspect(); '(' + map { |c| FMT % c }.join(',') + ')'; end
+      def ==(vec2); FaceSVG.same((self - vec2).abs, 0.0); end
+      def inspect(); "(#{map { |c| '0.4f' % c }.join(',')})"; end
       def to_s; inspect; end
       def x; self[0]; end
       def y; self[1]; end
@@ -62,8 +62,8 @@ module FaceSVG
       #    understanding-math-used-to-determine-if-vector-is-clockwise-counterclockwise-f
 
       # cwin svg coordinate space, +y is down.
-      def cw_normal(v0)
-        SVG.V2d(-v0.y, v0.x)
+      def cw_normal(vtx0)
+        SVG.V2d(-vtx0.y, vtx0.x)
       end
 
       # Sweep flag depends on svg coordinate sense.  cw_normal, above defines.
@@ -91,7 +91,7 @@ module FaceSVG
           vertex_angle1 = 0.5 * Math.atan2(((f1.dot f2) * 2), ((f1.dot f1) - (f2.dot f2)))
           # Get the two vertices "x" and "y"
           @vx = ellipseXY_at_angle(vertex_angle1)
-          @vy = ellipseXY_at_angle(vertex_angle1 + Math::PI/2)
+          @vy = ellipseXY_at_angle(vertex_angle1 + (Math::PI/2))
           # ellipse radii are magnitude of x,y vertex vectors
           @rx = @vx.abs
           @ry = @vy.abs
@@ -108,14 +108,14 @@ module FaceSVG
 
       def ellipseXY_at_angle(ang, absolute: false)
         # Return point on ellipse at angle, relative to center.  If absolute, add center
-        p = @xaxis2d * Math.cos(ang) + @yaxis2d * Math.sin(ang)
+        p = (@xaxis2d * Math.cos(ang)) + (@yaxis2d * Math.sin(ang))
         p = p + @centerxy if absolute
         p
       end
 
       # Always set large arc FLAG to 0, just draw as two arcs if arc > PI.
       # This works for degenerate case where start==end
-      SVG_ARC_FORMAT = " A #{FMT} #{FMT} #{FMT} 0 %s #{FMT} #{FMT}".freeze
+      SVG_ARC_FORMAT = ' A %0.4f %0.4f %0.4f 0 %s %0.4f %0.4f'
       def svgdata(is_first)
         sweep_fl = sweep()
         FaceSVG.dbg('Center %s vx %s vy %s Orig start,end angle %s,%s',
@@ -128,7 +128,7 @@ module FaceSVG
 
         # If first path (is_first) output "move",
         # Then draw arc to end, with arc to midpoint if "largarc"
-        ((is_first ? format("M #{FMT} #{FMT}", @startxy.x, @startxy.y) : '') +
+        ((is_first ? format('M %0.4f %0.4f', @startxy.x, @startxy.y) : '') +
           (@largearc ?
             format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
             : '') +
@@ -149,14 +149,14 @@ module FaceSVG
         FaceSVG.dbg('Line to %s', @endxy)
 
         (is_first ?
-          "M #{FMT} #{FMT}" % [@startxy.x, @startxy.y] :
+          'M %0.4f %0.4f' % [@startxy.x, @startxy.y] :
           '') + (
-          " L #{FMT} #{FMT}" % [@endxy.x, @endxy.y])
+          ' L %0.4f %0.4f' % [@endxy.x, @endxy.y])
       end
     end
 
-    BKGBOX = "new #{FMT} #{FMT} #{FMT} #{FMT}".freeze
-    VIEWBOX = "#{FMT} #{FMT} #{FMT} #{FMT}".freeze
+    BKGBOX = 'new %0.4f %0.4f %0.4f %0.4f'
+    VIEWBOX = '%0.4f %0.4f %0.4f %0.4f'
     # Class used to collect the output paths to be emitted as SVG
     class Canvas
       def initialize(fname, viewport, _unit)
@@ -167,17 +167,17 @@ module FaceSVG
         # TODO: fix units somewhere globally
         # for now just use 'in' since that's what sketchup does.
         @unit = 'in'
-        @matrix = format("matrix(1,0,0,-1,0.0,#{FMT})", @maxy)
+        @matrix = format('matrix(1,0,0,-1,0.0,%0.4f)', @maxy)
 
         @root = Node
                 .new('svg',
                      attrs: {
-                       'height' => format("#{FMT}#{@unit}", @height),
-                       'width' => format("#{FMT}#{@unit}", @width),
+                       'height' => format("%0.4f#{@unit}", @height),
+                       'width' => format("%0.4f#{@unit}", @width),
                        'version' => '1.1', # SVG VERSION
                        'viewBox' => format(VIEWBOX, @minx, @miny, @width, @height),
-                       'x' => format("#{FMT}#{@unit}", @minx),
-                       'y' => format("#{FMT}#{@unit}", @minx),
+                       'x' => format("%0.4f#{@unit}", @minx),
+                       'y' => format("%0.4f#{@unit}", @minx),
                        'xmlns' => 'http://www.w3.org/2000/svg',
                        'xmlns:xlink' => 'http://www.w3.org/1999/xlink',
                        'xmlns:shaper' => 'http://www.shapertools.com/namespaces/shaper',
@@ -224,13 +224,13 @@ module FaceSVG
         [outer_path] + inner_paths
       end
 
-      def add_paths(xf, face, surface)
+      def add_paths(transformed_parts, face, surface)
         # Ensure outer loop is first
         loops = [face.outer_loop] + face.loops.reject { |x| x == face.outer_loop }
 
         # Return array of [ [SVGData, Bounds], [SVGData, Bounds] ,...]
         data_bnds = loops.map do |loop|
-          pathparts = FaceSVG.reordered_path_parts(loop, xf)
+          pathparts = FaceSVG.reordered_path_parts(loop, transformed_parts)
           # Return array of [SVGData strings, Bounds]
           [SVGData.new(pathparts).to_s, Bounds.new.update(*loop.edges)]
         end
@@ -279,7 +279,7 @@ module FaceSVG
 
       def write(file)
         file.write("\n<#{@name} ")
-        @attrs and @attrs.each { |k, v| file.write("#{k}='#{v}' ") }
+        @attrs&.each { |k, v| file.write("#{k}='#{v}' ") }
         if @children.length == 0 and not @text
           file.write('/>')
         else
@@ -293,18 +293,19 @@ module FaceSVG
 
     class PathAttributes
       def initialize(kind, cut_depth)
-        if kind == PK_EXTERIOR
+        case kind
+        when PK_EXTERIOR
           @attributes = {
-            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format(FMT, cut_depth),
+            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.4f', cut_depth),
             FILL => black }
-        elsif kind == PK_INTERIOR
+        when PK_INTERIOR
           @attributes = {
-            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format(FMT, cut_depth),
+            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.4f', cut_depth),
             FILL => white, STROKE => black, STROKE_WIDTH => '2',
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
-        elsif kind == PK_POCKET
+        when PK_POCKET
           @attributes = {
-            SHAPER_PATH_TYPE => kind,  SHAPER_CUT_DEPTH => format(FMT, cut_depth),
+            SHAPER_PATH_TYPE => kind,  SHAPER_CUT_DEPTH => format('%0.4f', cut_depth),
             FILL_RULE => EVENODD, FILL => gray(cut_depth),
             STROKE_WIDTH => '2', STROKE =>  gray(cut_depth),
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
@@ -338,7 +339,7 @@ module FaceSVG
           is_first = false;
           d
         }
-        @svgdata = dataparts.join(' ') + 'Z '
+        @svgdata = "#{dataparts.join(' ')}Z "
       end
       def to_s; @svgdata; end
     end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Sketchup.require('facesvg/constants')
 Sketchup.require('matrix')
 
@@ -43,35 +45,35 @@ module FaceSVG
     Sketchup.active_model.start_operation(opname) if transaction
     yield
     Sketchup.active_model.commit_operation() if transaction
-  rescue => excp
+  rescue => e
     Sketchup.active_model.abort_operation() if transaction
-    _show_and_reraise(excp)
+    _show_and_reraise(e)
   end
 
   def _show_and_reraise(excp)
     UI.messagebox(
-      excp.to_s + "\n" + excp.backtrace.reject(&:empty?).join("\n*"))
+      "#{excp}\n #{excp.backtrace.reject(&:empty?).join("\n*")}")
     raise
   end
 
   ################
   def mark(saved_properties, *f_ary)
-    f_ary.each do |f|
-      saved_properties[f.entityID] = [f.material, f.layer]
-      f.material = FaceSVG.marker
+    f_ary.each do |face|
+      saved_properties[face.entityID] = [face.material, face.layer]
+      face.material = FaceSVG.marker
     end
   end
 
   def marked?
-    proc { |f|
-      f.is_a?(Sketchup::Face) && f.valid? && f.material == FaceSVG.marker
+    proc { |face|
+      face.is_a?(Sketchup::Face) && face.valid? && face.material == FaceSVG.marker
     }
   end
 
   def unmark(saved_properties, *f_ary)
-    f_ary.select(&marked?).each do |f|
+    f_ary.select(&marked?).each do |face|
       # Reapply the saved material, popping it from the hash
-      f.material, f.layer = saved_properties.delete(f.entityID)
+      face.material, face.layer = saved_properties.delete(face.entityID)
     end
   end
 
@@ -133,13 +135,13 @@ module FaceSVG
   # while transforming everything to z=0 plane, ( or nearby :-) )
   # If the chain of transforms has a negative determinant, it has one reflection
 
-  def reflection?(f)
+  def reflection?(face)
     # See if the transformations on the selected face result in a reflection.
     # All the other transformations don't matter since are already transforming
     # and rotating to get it into XY plane.  But a reflection needs inclusion
     # Get the selected face, and find all transforms associated with it and parents
-    transforms = (f.model.active_path || [])
-                 .map(&:transformation) + [f.model.edit_transform]
+    transforms = (face.model.active_path || [])
+                 .map(&:transformation) + [face.model.edit_transform]
     prod = transforms.reduce(&:*).to_a
     # Use ruby 3x3 Matrix to get determinant
     (Matrix.columns([prod[0, 3], prod[4, 3], prod[8, 3]]).determinant < 0)
@@ -154,16 +156,16 @@ module FaceSVG
     # If more than one face in all_connected,
     # they are unmarked after processing the first time,
     # Each face (or set of connected faces) is copied in its own group.
-    f_ary.each do |f|
-      next unless marked?.call(f)
+    f_ary.each do |face|
+      next unless marked?.call(face)
 
       # This has to be done before the edit is closed because Sketchup is incomprehensible
-      has_refl = reflection?(f)
+      has_refl = reflection?(face)
 
-      tmp = Sketchup.active_model.entities.add_group(f.all_connected)
+      tmp = Sketchup.active_model.entities.add_group(face.all_connected)
       # Make xf to rotate selected face parallel to z=0, move all to
       #   quadrant to avoid itersecting existing geometry
-      xf = Geom::Transformation.new(tmp.bounds.max, f.normal).inverse
+      xf = Geom::Transformation.new(tmp.bounds.max, face.normal).inverse
       # Duplicate into a new group, switching to global context
       #  (close open edits, if in group or component edit)
       su_close_active()
@@ -178,7 +180,7 @@ module FaceSVG
       }
 
       # unmark before explode tmp, face entityIDs change upon explode
-      unmark(orig_face_properties, *f.all_connected)
+      unmark(orig_face_properties, *face.all_connected)
 
       new_faces = new_entities.grep(Sketchup::Face)
       # Find originally selected (copied) face, could be >1, use first

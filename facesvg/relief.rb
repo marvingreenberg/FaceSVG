@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Sketchup.require('facesvg/constants')
 Sketchup.require('facesvg/su_util')
 
@@ -23,16 +25,17 @@ module FaceSVG
       else
         relieve_face_corners(*faces, radius)
       end
-    rescue RuntimeError => msg
-      UI.messagebox(msg)
+    rescue RuntimeError => e
+      UI.messagebox(e)
     end
 
     def relieve_face_corners(*faces, radius, auto: false)
       raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, 'face') if CR_ASYMMETRIC == CFG.corner_relief
+
       # Not asymmetric, must be symmetric
       # TODO: If only outer loop, relieve outside corners.
-      failures = faces.map { |f|
-        f.loops.reject(&:outer?).map { |l| symmetric_relief(l, radius, auto: auto) }
+      failures = faces.map { |face|
+        face.loops.reject(&:outer?).map { |l| symmetric_relief(l, radius, auto: auto) }
       }.count(false)
       raise format(NN_WARNING_LOOPS_IGNORED, failures) if (failures !=0 && !auto)
     end
@@ -40,10 +43,11 @@ module FaceSVG
     def relieve_edge_corners(*edges, radius)
       if CR_ASYMMETRIC == CFG.corner_relief
         raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, edges.size) if edges.size != 1
+
         asymmetric_relief(edges[0], inner_loop_with(edges[0]), radius)
       else
         # Symmetric for an edge just finds the loop containing the edge
-        loops = edges.map { |e| inner_loop_with(e, warning: false) }.reject(&:nil?).uniq
+        loops = edges.map { |e| inner_loop_with(e, warning: false) }.compact.uniq
         loops.each { |l| symmetric_relief(l, radius) }
       end
     end
@@ -54,6 +58,7 @@ module FaceSVG
       loop = faces.map(&:loops).flatten.reject(&:outer?)
                   .find { |l| l.edges.member?(edge) }
       raise EDGE_NOT_INNER if loop.nil? && warning
+
       loop
     end
 
@@ -69,7 +74,7 @@ module FaceSVG
       start0, end0 = ep0
       start1, end1 = ep1
       common, end0 = [start1, end1].member?(start0) ? [start0, end0] : [end0, start0]
-      end1 = (start1==common) ? end1 : start1
+      end1 = start1 unless (start1==common)
       [common, end0, end1]
     end
 
@@ -77,6 +82,7 @@ module FaceSVG
       # Return four corners (common) with connected points
       # Return empty array if it isn't a rectangle (corner not right angle)
       return [] if loop.edges.size != 4
+
       # get corners for each pair of edges
       edgepoints = loop.edges.map { |e| [e.start.position, e.end.position] }
       corners = edgepoints.zip(edgepoints.rotate(1)).map { |e0, e1| corner(e0, e1) }
@@ -85,6 +91,7 @@ module FaceSVG
       corners.map { |common, end0, end1|
         # Check 90 degree corners
         break [] unless (end0 - common).dot(end1 - common) < 0.001
+
         [common, end0, end1]
       }
     end
@@ -93,11 +100,11 @@ module FaceSVG
       raise EDGE_NOT_IN_RECTANGLE if loop.edges.size != 4
       raise EDGE_NOT_INNER if loop.outer?
       raise format(EDGE_TOO_SHORT_NN, radius) if
-        edge.length <= (RELIEF_MIN_REMAIN + 4*(radius + RADIUS_CLEARANCE))
+        edge.length <= (RELIEF_MIN_REMAIN + (4*(radius + RADIUS_CLEARANCE)))
     end
 
-    def mid_v(e0, e1)
-      m0, m1 = [e0, e1].map { |e|
+    def mid_v(edge0, edge1)
+      m0, m1 = [edge0, edge1].map { |e|
         e.start.position.to_a.zip(e.end.position.to_a).map { |a, b| (a + b)/ 2.0 }
       }
       (Geom::Point3d.new(m1) - Geom::Point3d.new(m0))
@@ -164,13 +171,14 @@ module FaceSVG
       end
     end
     ############################################################################
-    def check_auto_size(v0, v1, auto)
-      !auto || v0.length < AUTO_SYMMETRIC_MAX || v1.length < AUTO_SYMMETRIC_MAX
+    def check_auto_size(vertex0, vertex1, auto)
+      !auto || vertex0.length < AUTO_SYMMETRIC_MAX || vertex1.length < AUTO_SYMMETRIC_MAX
     end
-    def check_edge_bigenough(v0, v1, min_edge, radius, auto)
+    def check_edge_bigenough(vertex0, vertex1, min_edge, radius, auto)
       # If edge is big enough for symmetric relief
-      chk = v0.length > min_edge && v1.length > min_edge
+      chk = vertex0.length > min_edge && vertex1.length > min_edge
       raise format(EDGE_TOO_SHORT_NN, radius) if !chk && !auto
+
       chk
     end
 
@@ -178,43 +186,43 @@ module FaceSVG
       entities = loop.parent.entities
       normal = loop.face.normal
       radius += RADIUS_CLEARANCE
-      min_edge = 4 * 0.7071 * radius + RELIEF_MIN_REMAIN
+      min_edge = (4 * 0.7071 * radius) + RELIEF_MIN_REMAIN
 
       # For each pair of rectangle corner, draw a relief arc
       waste = rectangle(loop).map { |common, end0, end1|
-        v0 = (end0 - common)
-        v1 = (end1 - common)
-        break [] unless (check_edge_bigenough(v0, v1, min_edge, radius, auto) &&
-                         check_auto_size(v0, v1, auto))
+        vertex0 = (end0 - common)
+        vertex1 = (end1 - common)
+        break [] unless (check_edge_bigenough(vertex0, vertex1, min_edge, radius, auto) &&
+                         check_auto_size(vertex0, vertex1, auto))
 
         # Two vectors pointing away from common corner, scaled to r * sqrt(1/2)
         # p1
         # .
         # .
         #
-        # ^ v1    *c
+        # ^ vertex1    *c
         # |
         # |
         # |
-        # +------> v0 .... p0
+        # +------> vertex0 .... p0
         #
         #  If things are as drawn here, with vectors before scaling,
-        #  with normal out of screen, draw arc from (common + 2*v1) to
-        #  (common + 2*v0).  This means make the xaxis from c-> common + 2*v1
+        #  with normal out of screen, draw arc from (common + 2*vertex1) to
+        #  (common + 2*vertex0).  This means make the xaxis from c-> common + 2*vertex1
         # But, because the ordering of the edges is
-        #  unpredictable, v0 and v1 may be reversed.  Since the face
-        #  normal is "up", v0 x v1 in same direction as normal
+        #  unpredictable, vertex0 and vertex1 may be reversed.  Since the face
+        #  normal is "up", vertex0 x vertex1 in same direction as normal
         #  indicates this is the situation.  If they are reversed (dotprod < 0),
-        #  then v0 x v1 is opposite the normal
+        #  then vertex0 x vertex1 is opposite the normal
 
         # Reverse if normal is opposite
-        v0, v1 = [v1, v0] if (v0.cross(v1).dot(normal) < 0)
+        vertex0, vertex1 = [vertex1, vertex0] if (vertex0.cross(vertex1).dot(normal) < 0)
 
-        v0.length = v1.length = 0.7071 * radius
-        # FaceSVG.dbg('*-*-* %s corner v0 %s   v1 %s', common, v0, v1)
-        center = common + v0 + v1
-        p0 = common + v0 + v0
-        p1 = common + v1 + v1
+        vertex0.length = vertex1.length = 0.7071 * radius
+        # FaceSVG.dbg('*-*-* %s corner vertex0 %s   vertex1 %s', common, vertex0, vertex1)
+        center = common + vertex0 + vertex1
+        p0 = common + vertex0 + vertex0
+        p1 = common + vertex1 + vertex1
         xaxis = (p1 - center).normalize
 
         # Make two small offset edges - don't connect arc right to edges

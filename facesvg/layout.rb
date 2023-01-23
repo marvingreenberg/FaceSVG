@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ###########################################################
 # Licensed under the MIT license
 ###########################################################
@@ -50,9 +52,9 @@ module FaceSVG
         grps.each do |g|
           # Get a surface (to calculate pocket offset if needed)
           faces = g.entities.grep(Sketchup::Face)
-          surface = faces.find { |f| f.material == FaceSVG.surface }
+          surface = faces.find { |face| face.material == FaceSVG.surface }
           # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
-          faces.each { |f| svg.add_paths(g.transformation, f, surface) }
+          faces.each { |face| svg.add_paths(g.transformation, face, surface) }
         end
         svg
       end
@@ -65,6 +67,7 @@ module FaceSVG
         outpath = UI.savepanel(SVG_OUTPUT_FILE,
                                CFG.default_dir, "#{@title}.svg")
         return false if outpath.nil?
+
         CFG.default_dir = File.dirname(outpath)
         name = File.basename(outpath)
 
@@ -82,12 +85,15 @@ module FaceSVG
       ################
       def su_profilegrp(create: true)
         # Find or create the group for the profile entities
-        return @su_profilegrp if @su_profilegrp && @su_profilegrp.valid?
-        @su_profilegrp = Sketchup::active_model.entities.grep(Sketchup::Group)
-                                 .find { |g| g.name==PROFILE_GROUP && g.valid? }
+        unless @su_profilegrp&.valid?
+          @su_profilegrp = Sketchup::active_model.entities.grep(Sketchup::Group)
+                                   .find { |g| g.name==PROFILE_GROUP && g.valid? }
+        end
         return @su_profilegrp if @su_profilegrp
+
         # None existing, create (unless flag false)
         return nil unless create
+
         @su_profilegrp = Sketchup.active_model.entities.add_group()
       end
       ################
@@ -119,7 +125,7 @@ module FaceSVG
           # Handle automatic corner relief
           if CFG.corner_relief == CR_SYMMETRIC_AUTO
             surface_faces = new_entities.grep(Sketchup::Face)
-                                        .select { |f| f.material == FaceSVG.surface }
+                                        .select { |face| face.material == FaceSVG.surface }
             Relief.relieve_face_corners(*surface_faces, CFG.bit_diameter/2, auto: true)
           end
 

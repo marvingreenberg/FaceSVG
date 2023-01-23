@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Sketchup.require('facesvg/constants')
 
 module FaceSVG
@@ -22,10 +24,7 @@ module FaceSVG
         Line.new(xform, edge, start_vertex)
       end
     end
-    attr_reader :crv
-    attr_reader :center
-    attr_reader :startpos
-    attr_reader :endpos
+    attr_reader :crv, :center, :startpos, :endpos
   end
 
   ################
@@ -81,10 +80,10 @@ module FaceSVG
     end
   end
 
-  def reordered_path_parts(loop, xf)
+  def reordered_path_parts(loop, transformed_parts)
     # return loop edges so arc edges are grouped with metadata, all ordered end to start
     ordered_edges(loop).map { |edge, start_vertex|
-      PathPart.create(xf, edge, start_vertex)
-    }.reject(&:nil?)
+      PathPart.create(transformed_parts, edge, start_vertex)
+    }.compact
   end
 end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'sketchup.rb'
 require 'extensions.rb'
 require 'LangHandler'
@@ -6,7 +8,7 @@ require 'LangHandler'
 # TODO: support metric output mm,cm
 
 module FaceSVG
-  VERSION = '2.3.0'.freeze
+  VERSION = '2.3.0'
 
   lang = LanguageHandler.new('facesvg')
 
