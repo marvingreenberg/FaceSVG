@@ -1,0 +1,32 @@
+---
+include:
+- "refs/*.rb"
+- "facesvg/*.rb"
+- "facesvg.rb"
+exclude:
+- spec/**/*
+- test/**/*
+- vendor/**/*
+- ".bundle/**/*"
+- /build/**/*
+- /ThirdParty/**/*
+require:
+- sketchup-api-stubs
+domains: []
+reporters:
+- rubocop
+- require_not_found
+formatter:
+  rubocop:
+    cops: safe
+    except: []
+    only: []
+    extra_args: []
+require_paths:
+- "/Applications/SketchUp 2022/SketchUp.app/Contents/Resources/Content/Tools"
+- "./"
+- "refs"
+plugins: []
+max_files: 5000
+
+

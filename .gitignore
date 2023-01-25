@@ -3,3 +3,5 @@ tasks.json
 launch.json
 .vscode
 **/*~
+.yardoc
+doc/
