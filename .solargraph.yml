@@ -1,8 +1,7 @@
 ---
 include:
 - "refs/*.rb"
-- "facesvg/*.rb"
-- "facesvg.rb"
+- "lib/**/*.rb"
 exclude:
 - spec/**/*
 - test/**/*

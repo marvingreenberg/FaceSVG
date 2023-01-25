@@ -12,16 +12,16 @@ module FaceSVG
     def inspect
       format('%s %s->%s', self.class.name, startpos, endpos)
     end
-    def self.create(xform, edge, start_vertex)
+    def self.create(transformation, edge, start_vertex)
       if edge.curve.is_a?(Sketchup::ArcCurve) && !edge.curve.is_polygon?
         # many edges are part of one arc, process once, when its the start edge
         # or the confused end_edge (but definitely only once)
         #   else return nil
-        Arc.new(xform, edge, start_vertex) if
+        Arc.new(transformation, edge, start_vertex) if
           [edge.curve.first_edge.start, edge.curve.last_edge.end].member?(start_vertex)
       else
         # Lines and "free hand" curves are just line segments
-        Line.new(xform, edge, start_vertex)
+        Line.new(transformation, edge, start_vertex)
       end
     end
     attr_reader :crv, :center, :startpos, :endpos
@@ -29,25 +29,25 @@ module FaceSVG
 
   ################
   class Arc
-    def initialize(xform, edge, start_vertex)
+    def initialize(transformation, edge, start_vertex)
       @crv = edge.curve
       s, e = [@crv.first_edge.start, @crv.last_edge.end]
       s, e = [e, s] if start_vertex != s
-      @startpos = s.position.transform(xform)
-      @endpos = e.position.transform(xform)
-      @center = @crv.center.transform(xform)
+      @startpos = s.position.transform(transformation)
+      @endpos = e.position.transform(transformation)
+      @center = @crv.center.transform(transformation)
       FaceSVG.dbg('Transform path %s (s %s e %s start %s)', inspect, s.position, e.position, start_vertex.position)
     end
     include PathPart
   end
   ################
   class Line
-    def initialize(xform, edge, start_vertex)
+    def initialize(transformation, edge, start_vertex)
       @crv = nil
       s, e = [edge.start, edge.end]
       s, e = [e, s] if start_vertex != s
-      @startpos = s.position.transform(xform)
-      @endpos = e.position.transform(xform)
+      @startpos = s.position.transform(transformation)
+      @endpos = e.position.transform(transformation)
       FaceSVG.dbg('Transform path %s (s %s e %s start %s)', inspect, s.position, e.position, start_vertex.position)
     end
     include PathPart
@@ -80,10 +80,10 @@ module FaceSVG
     end
   end
 
-  def reordered_path_parts(loop, transformed_parts)
+  def reordered_path_parts(loop, transformation)
     # return loop edges so arc edges are grouped with metadata, all ordered end to start
     ordered_edges(loop).map { |edge, start_vertex|
-      PathPart.create(transformed_parts, edge, start_vertex)
+      PathPart.create(transformation, edge, start_vertex)
     }.compact
   end
 end

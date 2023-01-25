@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'sketchup.rb'
-require 'extensions.rb'
+require 'sketchup'
+require 'extensions'
 require 'LangHandler'
 # TODO: language support (not much)
 # TODO: windows testing
