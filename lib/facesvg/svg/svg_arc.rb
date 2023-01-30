@@ -88,7 +88,7 @@ module FaceSVG
 
       # Always set large arc FLAG to 0, just draw as two arcs if arc > PI.
       # This works for degenerate case where start==end
-      SVG_ARC_FORMAT = ' A %0.4f %0.4f %0.4f 0 %s %0.4f %0.4f'
+      SVG_ARC_FORMAT = ' A %0.3f %0.3f %0.3f 0 %s %0.3f %0.3f'
       def svgdata(is_first: false)
         sweep_fl = sweep()
         FaceSVG.dbg('Center %s vx %s vy %s Orig start,end angle %s,%s',
@@ -100,7 +100,7 @@ module FaceSVG
 
         # If first path (is_first) output "move",
         # Then draw arc to end, with arc to midpoint if "largarc"
-        ((is_first ? format('M %0.4f %0.4f', @startxy.x, @startxy.y) : '') +
+        ((is_first ? format('M %0.3f %0.3f', @startxy.x, @startxy.y) : '') +
           (@largearc ?
             format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
             : '') +

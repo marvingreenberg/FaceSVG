@@ -20,7 +20,7 @@ module FaceSVG
       def dot(vec2); zip(vec2).map { |c, v| c * v }.reduce(:+); end
       def abs(); map { |c| c * c }.reduce(:+)**0.5; end
       def ==(vec2); SVG.same((self - vec2).abs, 0.0); end
-      def inspect(); "(#{map { |c| '0.4f' % c }.join(',')})"; end
+      def inspect(); "(#{map { |c| '%0.3f' % c }.join(',')})"; end
       def to_s; inspect; end
       def x; self[0]; end
       def y; self[1]; end

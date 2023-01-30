@@ -17,9 +17,9 @@ module FaceSVG
         FaceSVG.dbg('Line to %s', @endxy)
 
         (is_first ?
-          'M %0.4f %0.4f' % [@startxy.x, @startxy.y] :
+          'M %0.3f %0.3f' % [@startxy.x, @startxy.y] :
           '') + (
-          ' L %0.4f %0.4f' % [@endxy.x, @endxy.y])
+          ' L %0.3f %0.3f' % [@endxy.x, @endxy.y])
       end
     end
   end
