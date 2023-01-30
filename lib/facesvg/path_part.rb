@@ -2,6 +2,7 @@
 
 require('facesvg/svg/svg_arc')
 require('facesvg/svg/svg_segment')
+require('facesvg/bounds')
 
 module FaceSVG
   extend self
@@ -14,7 +15,7 @@ module FaceSVG
       s, e = [e, s] if start_vertex != s
       startpos = s.position.transform(transformation)
       endpos = e.position.transform(transformation)
-      SVGSegment.new(startpos, endpos)
+      SVG::SVGSegment.new(startpos, endpos)
     end
 
     def createSVGArc(transformation, edge, start_vertex)
@@ -27,7 +28,7 @@ module FaceSVG
       radius, start_angle, end_angle, xaxis, yaxis = %i[
         radius start_angle end_angle xaxis yaxis
       ].map { |attr| curve.send(attr) }
-      SVGArc.new(center, radius, startpos, endpos, start_angle, end_angle, xaxis, yaxis)
+      SVG::SVGArc.new(center, radius, startpos, endpos, start_angle, end_angle, xaxis, yaxis)
     end
 
     def createSVGPart(transformation, edge, start_vertex)
@@ -70,6 +71,20 @@ module FaceSVG
       nextstart, nextend = [nextend, nextstart] if currend == nextend
       curredge, currstart, currend = [nextedge, nextstart, nextend]
       yield [curredge, currstart]
+    end
+  end
+
+  def get_svgdata_and_bounds(transformation, face)
+    # Ensure outer loop is first loop processed
+    loops = [face.outer_loop] + face.loops.reject { |x| x == face.outer_loop }
+
+    # Return array of [ [SVGData, Bounds], [SVGData, Bounds] ,...]
+    loops.map do |loop|
+      svg_parts = FaceSVG.svg_parts_for_loop(loop, transformation)
+      # Return array of [SVGData strings, Bounds]
+      svgdata = "#{svg_parts.map.with_index { |part, i| part.svgdata(is_first: i == 0) }.join(' ')} Z "
+      bounds =  Bounds.new.update(*loop.edges)
+      [svgdata, bounds]
     end
   end
 

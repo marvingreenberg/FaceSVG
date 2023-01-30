@@ -5,11 +5,11 @@
 ###########################################################
 require 'sketchup'
 require 'extensions'
-require 'langhandler'
 
 require('facesvg/constants')
 require('facesvg/relief/util')
 require('facesvg/su_util')
+require('facesvg/path_part')
 require('facesvg/svg/canvas')
 
 module FaceSVG
@@ -54,7 +54,12 @@ module FaceSVG
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |face| face.material == FaceSVG.surface }
           # Use transform if index nil? - means all canvas in one file, SINGLE_FILE
-          faces.each { |face| canvas.add_paths(g.transformation, face, surface) }
+          faces.each do |face|
+            data_and_bounds = FaceSVG.get_svgdata_and_bounds(g.transformation, face)
+            cut_depth = face.material == FaceSVG.pocket ? FaceSVG.su_face_offset(face, surface) : CFG.cut_depth
+            path_type = face.material == FaceSVG.pocket ? PathType::POCKET : PathType::CUT
+            canvas.add_paths(data_and_bounds, cut_depth, path_type)
+          end
         end
         canvas
       end
@@ -113,8 +118,7 @@ module FaceSVG
       ################
       def layout_facegrps(*su_faces)
         FaceSVG.capture_faceprofiles(*su_faces) do |new_entities, bnds|
-          layout_xf = Geom::Transformation
-                      .new([@layoutx, @layouty, 0.0])
+          layout_xf = Geom::Transformation.new([@layoutx, @layouty, 0.0])
           # explode, work around more weird behavior with Arcs?
           # Transform them and then add them back into a group
           Sketchup.active_model.entities.transform_entities(layout_xf, new_entities)

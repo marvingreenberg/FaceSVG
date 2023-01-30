@@ -77,32 +77,20 @@ module FaceSVG
         [outer_path] + inner_paths
       end
 
-      def get_svgdata_and_bounds(transformation, face)
-        loops = [face.outer_loop] + face.loops.reject { |x| x == face.outer_loop }
-
-        # Return array of [ [SVGData, Bounds], [SVGData, Bounds] ,...]
-        loops.map do |loop|
-          svg_parts = FaceSVG.svg_parts_for_loop(loop, transformation)
-          # Return array of [SVGData strings, Bounds]
-          svgdata = "#{svg_parts.map.with_index { |part, i| part.svgdata(is_first: i == 0) }.join(' ')} Z "
-          bounds =  Bounds.new.update(*loop.edges)
-          [svgdata, bounds]
-        end
-      end
-
-      def add_paths(transformation, face, surface)
-        # Ensure outer loop is first
-        data_and_bounds = get_svgdata_and_bounds(transformation, face)
+      def add_paths(data_and_bounds, cut_depth, path_type)
         # First data path is exterior, or pocket cut outer bounds
         # Pocket cut paths are joined as outer and inner with evenodd fill-rule
         # Exterior, interior done as separate path to generate correct exterior interior cuts
-        if face.material == FaceSVG.pocket
-          cut_depth = FaceSVG.su_face_offset(face, surface)
+
+        case path_type
+        when PathType::POCKET
           nodes = pocket_paths(data_and_bounds, cut_depth)
-        else
-          cut_depth = CFG.cut_depth
+        when PathType::CUT
           nodes = cut_paths(data_and_bounds, cut_depth)
+        else
+          raise "unexpected path type #{path_type}"
         end
+
         @root.add_children(*nodes)
       end
     end

@@ -59,6 +59,11 @@ module FaceSVG
   # needs to be larger (when ordering edges of a path)
   TOLERANCE = 0.025
 
+  module PathType
+    CUT = :CUT
+    POCKET = :POCKET
+  end
+
   # Messages
   ERROR_ASYMMETRIC_SINGLE_EDGE_SS =
     '*Error* Select a single face edge for asymmetric corner relief (%s selected)'
