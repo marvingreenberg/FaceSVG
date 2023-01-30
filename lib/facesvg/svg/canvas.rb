@@ -8,8 +8,8 @@ module FaceSVG
   module SVG
     extend self
 
-    BKGBOX = 'new %0.4f %0.4f %0.4f %0.4f'
-    VIEWBOX = '%0.4f %0.4f %0.4f %0.4f'
+    BKGBOX = 'new %0.3f %0.3f %0.3f %0.3f'
+    VIEWBOX = '%0.3f %0.3f %0.3f %0.3f'
     # Class used to collect the output paths to be emitted as SVG
     class Canvas
       def initialize(fname, viewport, _unit)
@@ -20,17 +20,17 @@ module FaceSVG
         # TODO: fix units somewhere globally
         # for now just use 'in' since that's what sketchup does.
         @unit = 'in'
-        @matrix = format('matrix(1,0,0,-1,0.0,%0.4f)', @maxy)
+        @matrix = format('matrix(1,0,0,-1,0.0,%0.3f)', @maxy)
 
         @root = Node
                 .new('svg',
                      attrs: {
-                       'height' => format("%0.4f#{@unit}", @height),
-                       'width' => format("%0.4f#{@unit}", @width),
+                       'height' => format("%0.3f#{@unit}", @height),
+                       'width' => format("%0.3f#{@unit}", @width),
                        'version' => '1.1', # SVG VERSION
                        'viewBox' => format(VIEWBOX, @minx, @miny, @width, @height),
-                       'x' => format("%0.4f#{@unit}", @minx),
-                       'y' => format("%0.4f#{@unit}", @minx),
+                       'x' => format("%0.3f#{@unit}", @minx),
+                       'y' => format("%0.3f#{@unit}", @minx),
                        'xmlns' => 'http://www.w3.org/2000/svg',
                        'xmlns:xlink' => 'http://www.w3.org/1999/xlink',
                        'xmlns:shaper' => 'http://www.shapertools.com/namespaces/shaper',
