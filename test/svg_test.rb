@@ -2,7 +2,6 @@
 
 require 'minitest/mock'
 
-dorequire 'SketchupStub/ArcCurve'
 require 'facesvg/svg/vector_n'
 require 'facesvg/svg/util'
 require 'facesvg/svg/svg_arc'
