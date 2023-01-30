@@ -1,57 +1,50 @@
 # frozen_string_literal: true
 
-Sketchup.require('facesvg/constants')
+require('facesvg/svg/svg_arc')
+require('facesvg/svg/svg_segment')
 
 module FaceSVG
   extend self
-  ########################################################################
-  # These "elements" collect the edges for an arc with metadata. Lines
-  # just have an edge.  Many edges are in one arc, so ignore later edges
-  # in a processed arc
+
   module PathPart
-    def inspect
-      format('%s %s->%s', self.class.name, startpos, endpos)
+    extend self
+
+    def createSVGSegment(transformation, edge, start_vertex)
+      s, e = [edge.start, edge.end]
+      s, e = [e, s] if start_vertex != s
+      startpos = s.position.transform(transformation)
+      endpos = e.position.transform(transformation)
+      SVGSegment.new(startpos, endpos)
     end
-    def self.create(transformation, edge, start_vertex)
+
+    def createSVGArc(transformation, edge, start_vertex)
+      curve = edge.curve
+      s, e = [curve.first_edge.start, curve.last_edge.end]
+      s, e = [e, s] if start_vertex != s
+      startpos = s.position.transform(transformation)
+      endpos = e.position.transform(transformation)
+      center = curve.center.transform(transformation)
+      radius, start_angle, end_angle, xaxis, yaxis = %i[
+        radius start_angle end_angle xaxis yaxis
+      ].map { |attr| curve.send(attr) }
+      SVGArc.new(center, radius, startpos, endpos, start_angle, end_angle, xaxis, yaxis)
+    end
+
+    def createSVGPart(transformation, edge, start_vertex)
       if edge.curve.is_a?(Sketchup::ArcCurve) && !edge.curve.is_polygon?
         # many edges are part of one arc, process once, when its the start edge
         # or the confused end_edge (but definitely only once)
         #   else return nil
-        Arc.new(transformation, edge, start_vertex) if
+        createSVGArc(transformation, edge, start_vertex) if
           [edge.curve.first_edge.start, edge.curve.last_edge.end].member?(start_vertex)
       else
         # Lines and "free hand" curves are just line segments
-        Line.new(transformation, edge, start_vertex)
+        createSVGSegment(transformation, edge, start_vertex)
       end
     end
     attr_reader :crv, :center, :startpos, :endpos
   end
 
-  ################
-  class Arc
-    def initialize(transformation, edge, start_vertex)
-      @crv = edge.curve
-      s, e = [@crv.first_edge.start, @crv.last_edge.end]
-      s, e = [e, s] if start_vertex != s
-      @startpos = s.position.transform(transformation)
-      @endpos = e.position.transform(transformation)
-      @center = @crv.center.transform(transformation)
-      FaceSVG.dbg('Transform path %s (s %s e %s start %s)', inspect, s.position, e.position, start_vertex.position)
-    end
-    include PathPart
-  end
-  ################
-  class Line
-    def initialize(transformation, edge, start_vertex)
-      @crv = nil
-      s, e = [edge.start, edge.end]
-      s, e = [e, s] if start_vertex != s
-      @startpos = s.position.transform(transformation)
-      @endpos = e.position.transform(transformation)
-      FaceSVG.dbg('Transform path %s (s %s e %s start %s)', inspect, s.position, e.position, start_vertex.position)
-    end
-    include PathPart
-  end
   ################
   # The ordering of edges in sketchup face boundaries seems
   # arbitrary, make predictable Start at arbitrary element, order
@@ -80,10 +73,10 @@ module FaceSVG
     end
   end
 
-  def reordered_path_parts(loop, transformation)
-    # return loop edges so arc edges are grouped with metadata, all ordered end to start
+  def svg_parts_for_loop(loop, transformation)
+    # return loop edges as SVG parts
     ordered_edges(loop).map { |edge, start_vertex|
-      PathPart.create(transformation, edge, start_vertex)
+      PathPart.createSVGPart(transformation, edge, start_vertex)
     }.compact
   end
 end

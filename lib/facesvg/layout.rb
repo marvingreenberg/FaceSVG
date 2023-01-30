@@ -5,12 +5,12 @@
 ###########################################################
 require 'sketchup'
 require 'extensions'
-require 'LangHandler'
+require 'langhandler'
 
-# Provides SVG module with SVG::Canvas class
-Sketchup.require('facesvg/constants')
-Sketchup.require('facesvg/su_util')
-Sketchup.require('facesvg/svg')
+require('facesvg/constants')
+require('facesvg/relief/util')
+require('facesvg/su_util')
+require('facesvg/svg/canvas')
 
 module FaceSVG
   module Layout
@@ -42,21 +42,21 @@ module FaceSVG
       end
 
       ################
-      def makesvg(name, *grps)
+      def makecanvas(name, *grps)
         bnds = Bounds.new.update(*grps)
         viewport = [bnds.min.x, bnds.min.y, bnds.max.x, bnds.max.y]
-        svg = SVG::Canvas.new(name, viewport, CFG.units)
-        svg.title(format('%s cut profile', @title))
-        svg.desc(format('Shaper cut profile from Sketchup model %s', @title))
+        canvas = SVG::Canvas.new(name, viewport, CFG.units)
+        canvas.title(format('%s cut profile', @title))
+        canvas.desc(format('Shaper cut profile from Sketchup model %s', @title))
 
         grps.each do |g|
           # Get a surface (to calculate pocket offset if needed)
           faces = g.entities.grep(Sketchup::Face)
           surface = faces.find { |face| face.material == FaceSVG.surface }
-          # Use tranform if index nil? - means all svg in one file, SINGLE_FILE
-          faces.each { |face| svg.add_paths(g.transformation, face, surface) }
+          # Use transform if index nil? - means all canvas in one file, SINGLE_FILE
+          faces.each { |face| canvas.add_paths(g.transformation, face, surface) }
         end
-        svg
+        canvas
       end
       ################
       def write
@@ -72,8 +72,8 @@ module FaceSVG
         name = File.basename(outpath)
 
         File.open(outpath, 'w') do |file|
-          svg = makesvg(name, *grps)
-          svg.write(file)
+          canvas = makecanvas(name, *grps)
+          canvas.write(file)
         end
       end
       ################

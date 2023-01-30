@@ -3,8 +3,6 @@
 ###########################################################
 # Licensed under the MIT license
 ###########################################################
-require 'sketchup'
-require 'LangHandler'
 
 # i = Sketchup::active_model.options['UnitsOptions']['LengthUnit']
 # unit = ['in','ft','mm','cm','m'][i]

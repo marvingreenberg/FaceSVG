@@ -2,7 +2,7 @@
 
 require 'sketchup'
 require 'extensions'
-require 'LangHandler'
+require 'langhandler'
 # TODO: language support (not much)
 # TODO: windows testing
 # TODO: support metric output mm,cm

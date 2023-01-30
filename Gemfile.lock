@@ -5,6 +5,7 @@ GEM
     backport (1.2.0)
     benchmark (0.1.0)
     diff-lcs (1.5.0)
+    docile (1.4.0)
     e2mmap (0.1.0)
     jaro_winkler (1.5.4)
     json (2.3.0)
@@ -14,8 +15,6 @@ GEM
       kramdown (~> 2.0)
     kwalify (0.7.2)
     mini_portile2 (2.8.1)
-    mocha (2.0.2)
-      ruby2_keywords (>= 0.0.5)
     nokogiri (1.14.0)
       mini_portile2 (~> 2.8.0)
       racc (~> 1.4)
@@ -49,7 +48,12 @@ GEM
       racc (>= 1.4.10)
       slop
     ruby-progressbar (1.11.0)
-    ruby2_keywords (0.0.5)
+    simplecov (0.22.0)
+      docile (~> 1.1)
+      simplecov-html (~> 0.11)
+      simplecov_json_formatter (~> 0.1)
+    simplecov-html (0.12.3)
+    simplecov_json_formatter (0.1.4)
     sketchup-api-stubs (0.7.8)
     slop (4.9.3)
     solargraph (0.48.0)
@@ -78,10 +82,10 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  mocha
   reek (~> 6.1)
   rubocop (~> 1.43)
   ruby-lint (~> 0.9.1)
+  simplecov
   sketchup-api-stubs (~> 0.7.8)
   solargraph
 

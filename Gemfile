@@ -10,4 +10,4 @@ gem 'sketchup-api-stubs', '~> 0.7.8'
 
 gem 'solargraph', group: :development
 
-gem 'mocha', group: :development
+gem 'simplecov', require: false, group: :test

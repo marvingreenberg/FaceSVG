@@ -1,16 +1,14 @@
 # frozen_string_literal: true
 
-Sketchup.require('facesvg/constants')
+require('facesvg/constants')
+require('facesvg/bounds')
+require('facesvg/svg/util')
 Sketchup.require('matrix')
 
 module FaceSVG
   extend self
 
-  def same(num0, num1)
-    (num0-num1).abs < TOLERANCE
-  end
-
-  if ENV['FACESVG_DEBUG']
+  if true # ENV['FACESVG_DEBUG']
     def dbg(fmt, *args)
       puts format(fmt, *args)
     end
@@ -47,41 +45,41 @@ module FaceSVG
     Sketchup.active_model.commit_operation() if transaction
   rescue => e
     Sketchup.active_model.abort_operation() if transaction
-    _show_and_reraise(e)
+    su_show_and_reraise(e)
   end
 
-  def _show_and_reraise(excp)
+  def su_show_and_reraise(excp)
     UI.messagebox(
       "#{excp}\n #{excp.backtrace.reject(&:empty?).join("\n*")}")
     raise
   end
 
   ################
-  def mark(saved_properties, *f_ary)
+  def su_mark(saved_properties, *f_ary)
     f_ary.each do |face|
       saved_properties[face.entityID] = [face.material, face.layer]
       face.material = FaceSVG.marker
     end
   end
 
-  def marked?
+  def su_marked?
     proc { |face|
       face.is_a?(Sketchup::Face) && face.valid? && face.material == FaceSVG.marker
     }
   end
 
-  def unmark(saved_properties, *f_ary)
-    f_ary.select(&marked?).each do |face|
+  def su_unmark(saved_properties, *f_ary)
+    f_ary.select(&su_marked?).each do |face|
       # Reapply the saved material, popping it from the hash
       face.material, face.layer = saved_properties.delete(face.entityID)
     end
   end
 
-  def face_offset(face, other)
+  def su_face_offset(face, other)
     other.vertices[0].position.distance_to_plane(face.plane)
   end
 
-  def related_faces?(face)
+  def su_related_faces?(face)
     # All the faces on the same "side"
     proc { |other|
       (face.normal % other.normal ==
@@ -90,43 +88,12 @@ module FaceSVG
     }
   end
 
-  class Bounds
-    # Convenience wrapper around a bounding box, accumulate the bounds
-    #  of related faces and create a transform to move highest face
-    #  to z=0, and min x,y to 0,0
-    # BoundingBox width and height methods are undocumented nonsense, ignore them
-    def initialize()
-      @bounds = Geom::BoundingBox.new
-    end
-    def update(*e_ary)
-      e_ary.each { |e| @bounds.add(e.bounds) }
-      self
-    end
-
-    # Return a number that is a measure of the "extent" if the bounding box
-    def extent; @bounds.diagonal; end
-    def width; @bounds.max.x - @bounds.min.x; end
-    def height; @bounds.max.y - @bounds.min.y; end
-    def min; @bounds.min; end
-    def max; @bounds.max; end
-    def to_s; format('Bounds(min %s max %s)', @bounds.min, @bounds.max); end
-
-    def shift_transform
-      # Return a transformation to move min to 0,0, and shift bounds accordingly
-      Geom::Transformation
-        .new([1.0, 0.0, 0.0, 0.0,
-              0.0, 1.0, 0.0, 0.0,
-              0.0, 0.0, 1.0, 0.0,
-              -@bounds.min.x, -@bounds.min.y, -@bounds.max.z, 1.0])
-    end
-  end
-
   # At this point the faces are all parallel to z=0 plane
   # Plane array a,b,c,d -> d is the height
   def annotate_related_faces(face)
     # Find faces at same z as selected face
     proc { |r|
-      r.material = same(face.plane[3], r.plane[3]) ? FaceSVG.surface : FaceSVG.pocket
+      r.material = SVG.same(face.plane[3], r.plane[3]) ? FaceSVG.surface : FaceSVG.pocket
     }
   end
 
@@ -151,13 +118,13 @@ module FaceSVG
     # Yields facegroup, face  (copied selection)
     orig_face_properties = {} # Save face material, layer through copy
     # mark the face(s) selected to copy
-    mark(orig_face_properties, *f_ary)
+    su_mark(orig_face_properties, *f_ary)
 
     # If more than one face in all_connected,
     # they are unmarked after processing the first time,
     # Each face (or set of connected faces) is copied in its own group.
     f_ary.each do |face|
-      next unless marked?.call(face)
+      next unless su_marked?.call(face)
 
       # This has to be done before the edit is closed because Sketchup is incomprehensible
       has_refl = reflection?(face)
@@ -180,14 +147,14 @@ module FaceSVG
       }
 
       # unmark before explode tmp, face entityIDs change upon explode
-      unmark(orig_face_properties, *face.all_connected)
+      su_unmark(orig_face_properties, *face.all_connected)
 
       new_faces = new_entities.grep(Sketchup::Face)
       # Find originally selected (copied) face, could be >1, use first
-      face = new_faces.find(&marked?)
+      face = new_faces.find(&su_marked?)
       # Find the "related" faces, same plane or small offset (pocket)
       related_faces = new_faces
-                      .grep(Sketchup::Face).select(&related_faces?(face))
+                      .grep(Sketchup::Face).select(&su_related_faces?(face))
                       .each(&annotate_related_faces(face))
 
       # Delete copied faces, that were not originally selected and not "related"

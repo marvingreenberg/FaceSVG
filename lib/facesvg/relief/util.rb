@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-Sketchup.require('facesvg/constants')
-Sketchup.require('facesvg/su_util')
+require('facesvg/constants')
+require('facesvg/su_util')
 
 module FaceSVG
   module Relief

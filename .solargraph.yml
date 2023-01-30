@@ -23,7 +23,8 @@ formatter:
     extra_args: []
 require_paths:
 - "/Applications/SketchUp 2022/SketchUp.app/Contents/Resources/Content/Tools"
-- "./"
+- "lib"
+- "test"
 - "refs"
 plugins: []
 max_files: 5000

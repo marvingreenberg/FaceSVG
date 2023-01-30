@@ -5,7 +5,7 @@
 ##########################################################
 require 'sketchup'
 require 'extensions'
-require 'LangHandler'
+require 'langhandler'
 
 # redefine module if reloading plugin under sketchup
 begin
@@ -14,10 +14,10 @@ rescue
   true
 end
 
-Sketchup.require('facesvg/constants')
-Sketchup.require('facesvg/layout')
-Sketchup.require('facesvg/relief')
-Sketchup.require('facesvg/su_util')
+require('facesvg/constants')
+require('facesvg/layout')
+require('facesvg/relief/util')
+require('facesvg/su_util')
 
 # API is strange - many operations create only approximate edges, but maintain accurate
 #   circular or elliptical arc metadata separately.
@@ -106,7 +106,7 @@ module FaceSVG
         CFG.cut_depth, CFG.corner_relief, CFG.bit_diameter) = inputs
     end
   rescue => e
-    _show_and_reraise(e)
+    su_show_and_reraise(e)
   end
 
   unless file_loaded?(__FILE__)
@@ -145,7 +145,7 @@ module FaceSVG
       # UI.messagebox "Loaded #{__FILE__}", MB_OK (debugging only)
       file_loaded(__FILE__)
     rescue => e
-      _show_and_reraise(e)
+      su_show_and_reraise(e)
     end
   end
 end

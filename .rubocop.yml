@@ -1,8 +1,9 @@
 AllCops:
   TargetRubyVersion: 2.7
+  Exclude:
+    - stubs/Sketchup/*.rb
   NewCops: enable
 
-# Figure out WTF is providing format(), make use of '%' disappear?
 
 Layout/LineLength:
   Max: 120
@@ -120,4 +121,7 @@ Layout/MultilineMethodCallBraceLayout:
   Enabled: false
 
 Style/ConditionalAssignment:
+  Enabled: false
+
+Style/EmptyMethod:
   Enabled: false
