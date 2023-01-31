@@ -7,8 +7,8 @@ module FaceSVG
     class SVGSegment
       # Edge is a single line segment with a start and end x,y
       def initialize(startpos, endpos)
-        @startxy = vector_2d(startpos)
-        @endxy = vector_2d(endpos)
+        @startxy = SVG.vector_2d(startpos)
+        @endxy = SVG.vector_2d(endpos)
       end
 
       def svgdata(is_first: false)

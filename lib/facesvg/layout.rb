@@ -9,7 +9,7 @@ require 'extensions'
 require('facesvg/constants')
 require('facesvg/relief/util')
 require('facesvg/su_util')
-require('facesvg/path_part')
+require('facesvg/svg_util')
 require('facesvg/svg/canvas')
 
 module FaceSVG
