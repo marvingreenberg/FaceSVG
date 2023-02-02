@@ -6,6 +6,8 @@ require 'facesvg/svg/vector_n'
 require 'facesvg/svg/util'
 require 'facesvg/svg/svg_arc'
 
+def xy(*args); FaceSVG::SVG.vector_2d(*args); end
+
 module FaceSVG
   extend self
 
@@ -35,16 +37,16 @@ class TestFaceSVG < Test::Unit::TestCase
   end
 
   def test_SVGArc
-    center = [0.0, 0.0]
+    centerxy = xy([0.0, 0.0])
     radius = 2.0
-    startpos = [2.0, 0.0]
-    endpos = [2.0, 0.0]
+    startxy = xy([2.0, 0.0])
+    endxy = xy([2.0, 0.0])
     start_angle = 0.0
     end_angle = 2 * Math::PI
-    xaxis = [1.0, 0.0]
-    yaxis = [0.0, 1.0]
+    xaxis2d = xy([1.0, 0.0])
+    yaxis2d = xy([0.0, 1.0])
     arc = ::FaceSVG::SVG::SVGArc.new(
-      center, radius, startpos, endpos, start_angle, end_angle, xaxis, yaxis)
+      centerxy, radius, startxy, endxy, start_angle, end_angle, xaxis2d, yaxis2d)
 
     assert_equal(2, arc.instance_variable_get(:@radius))
     assert_equal([0.0, 0.0], arc.instance_variable_get(:@centerxy).to_a)

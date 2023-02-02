@@ -1,0 +1,17 @@
+{
+  "function": "FaceSVG::SVG::SVGArc.svgdata",
+  "inputs": [
+    {
+      "radius": 0.3643829386826364,
+      "centerxy": [6.557,4.668],
+      "startxy": [6.293,4.418],
+      "endxy": [6.193,4.668],
+      "start_angle": 0.0,
+      "end_angle": 0.7559622492999554,
+      "xaxis2d": [-0.265,-0.250],
+      "yaxis2d": [-0.250,0.265]
+    },
+    true
+  ],
+  "result": "M 6.293 4.418 A 0.364 0.364 223.313 0 0 6.193 4.668"
+}

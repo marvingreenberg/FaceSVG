@@ -13,22 +13,35 @@ module FaceSVG
     #  but treats everything as edges
     # Create class to aggregate ArcCurve with its associated Edges
     class SVGArc
+      attr_reader(:startxy, :endxy)
+
       # ArcCurve has a sequence of Sketchup::Edge (line) segments, and a curve object
       # with accurate arc information
       # Note, now all paths are transformed to z=0. So start using 2d
-      def initialize(center, radius, startpos, endpos, start_angle, end_angle, xaxis, yaxis)
+      def initialize(centerxy, radius, startxy, endxy, start_angle, end_angle, xaxis2d, yaxis2d)
         @radius = radius
-        @centerxy = SVG.vector_2d(center)
-        @startxy = SVG.vector_2d(startpos)
-        @endxy = SVG.vector_2d(endpos)
+        @centerxy = centerxy
+        @startxy = startxy
+        @endxy = endxy
         @start_angle = start_angle
         @end_angle = SVG.su_bug(end_angle)
-        @xaxis2d = SVG.vector_2d(xaxis)
-        @yaxis2d = SVG.vector_2d(yaxis)
+        @xaxis2d = xaxis2d
+        @yaxis2d = yaxis2d
 
         ellipse_parameters()
-        FaceSVG.dbg("Defining SVGArc start, end, center, radius '%s' '%s' '%s' '%s' (ang %s %s)",
-                    @startxy, @endxy, @centerxy, @radius, SVG.to_degrees(@start_angle), SVG.to_degrees(@end_angle))
+      end
+
+      def to_h()
+        {
+          radius: @radius,
+          centerxy: @centerxy,
+          startxy: @startxy,
+          endxy: @endxy,
+          start_angle: @start_angle,
+          end_angle: @end_angle,
+          xaxis2d: @xaxis2d,
+          yaxis2d: @yaxis2d
+        }
       end
 
       # https://gamedev.stackexchange.com/questions/45412/
@@ -100,11 +113,14 @@ module FaceSVG
 
         # If first path (is_first) output "move",
         # Then draw arc to end, with arc to midpoint if "largarc"
-        ((is_first ? format('M %0.3f %0.3f', @startxy.x, @startxy.y) : '') +
+        result = ((is_first ? format('M %0.3f %0.3f', @startxy.x, @startxy.y) : '') +
           (@largearc ?
             format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
             : '') +
           format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, @endxy.y))
+        FaceSVG.testdata(function: 'FaceSVG::SVG::SVGArc.svgdata',
+                         inputs: [to_h, is_first], result: result)
+        result
       end
     end
   end
