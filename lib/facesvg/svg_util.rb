@@ -8,24 +8,7 @@ require('facesvg/bounds')
 module FaceSVG
   extend self
 
-  def edgelist(desc, edges)
-    FaceSVG.dbg("#{desc}\n   #{edges.map { |e| [xy(e.start.position), xy(e.end.position)] }}")
-  end
-
   def xy(*args); SVG.vector_2d(*args); end
-  def xyz(*args); SVG::VectorN(*args); end
-
-  # A mess of stuff to try to generate some test data
-  def part_to_h(part);
-    part.methods.include?(:radius) ?
-    { start: xyz(part.start.position), end: xyz(part.end.position), radius: part.radius,
-      start_angle: part.start_angle, end_angle: part.end_angle,
-      center: xyz(part.center), xaxis: xyz(part.xaxis), yaxis: xyz(part.yaxis)
-    } :
-    { start: xyz(part.start), end: xyz(part.end) };
-  end
-  def parts_to_json(_parts); edges.map { |p| part_to_h(p) }; end
-  def su_part_ary_to_json(su_part_ary); su_part_ary.map { |part| part_to_h(part) }; end
 
   # @param transformation [Geom::Transformation]
   # @param edge [Sketchup::Edge]
@@ -111,7 +94,7 @@ module FaceSVG
   # @return [nil]
   def remove_associated_curve_edges(edges, id)
     before = edges.size
-    edges.reject! { |e| e.curve&.entityID == id }
+    edges.reject! { |e| e.curve && e.curve.entityID == id }
     FaceSVG.dbg("removed #{before - edges.size} associated with id #{id}")
   end
 
@@ -122,9 +105,8 @@ module FaceSVG
   # @return [Sketchup::Edge, Sketchup::ArcCurve]
   def extract_curve_or_edge(edges, index)
     edge = edges.slice!(index)
-    edgelist("Extracted edge #{index}", [edge])
     curve = edge.curve
-    return edge unless curve&.methods&.include?(:radius)
+    return edge unless curve && curve.methods.include?(:radius)
 
     # The same arc curve is associated with many drawn edges, remove those once processed
     remove_associated_curve_edges(edges, curve.entityID)
@@ -143,15 +125,11 @@ module FaceSVG
     return to_enum(:ordered_su_parts, loop) unless block_given?
 
     edges = loop.edges.dup()
-    edgelist('All edges', edges)
     current_part = extract_curve_or_edge(edges, 0)
     start_vertex, end_vertex = end_points(current_part)
-    id = current_part&.entityID; cls = current_part&.class
-    FaceSVG.dbg("yield first part #{cls} id #{id} start #{xy(start_vertex.position)} end #{xy(end_vertex.position)}");
     yield current_part
 
     while (edges.length > 0)
-      FaceSVG.dbg("Looping, edges.length #{edges.length}")
       # Find the edge in loop attached to current_edge (or first edge)
       index = edges.find_index { |edge|
         edge.start == end_vertex || edge.end == end_vertex
@@ -159,18 +137,12 @@ module FaceSVG
       # change endpoints to scan all arc_curve edges to get the right end point from start, end
       # Don't calculate is_reversed from edge.end.  Save previous_end_vertex, and compare start_vertex and end_vertex,
       # and switch here if needed.
-      unless index
-        FaceSVG.dbg("ERROR: Searching for #{xy(end_vertex.position)}")
-        edgelist('   searched ', edges)
-      end
+      FaceSVG.dbg("ERROR: Searching for #{xy(end_vertex.position)}") unless index
 
       current_part = extract_curve_or_edge(edges, index)
       previous_end_vertex = end_vertex
       start_vertex, end_vertex = end_points(current_part)
       start_vertex, end_vertex = [end_vertex, start_vertex] if previous_end_vertex == end_vertex
-      id = current_part&.entityID; cls = current_part&.class
-      FaceSVG.dbg("yield part #{cls} id #{id} start #{xy(start_vertex.position)} end #{xy(end_vertex.position)}");
-      FaceSVG.dbg("   yields, remaining, edges.length #{edges.length}")
       yield current_part
     end
   end
@@ -194,7 +166,7 @@ module FaceSVG
     # Convert Sketchup Edge and ArcCurves to internal representation
     previous = nil # initial start/end is nominal
     parts.map { |part|
-      p = createSVGPart(transformation, part, previous&.endxy)
+      p = createSVGPart(transformation, part, previous && previous.endxy)
       previous = p
       p
     }
