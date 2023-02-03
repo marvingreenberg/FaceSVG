@@ -17,7 +17,7 @@ Go to https://github.com/marvingreenberg/FaceSVG/releases for download links for
 
 See the YouTube video for some examples of its operation.
 
-[![FaceSVG Video](https://github.com/marvingreenberg/FaceSVG/blob/master/images/FaceSVG2.png)](https://www.youtube.com/watch?v=IQFW8jPruxM)
+[![FaceSVG Video](https://github.com/marvingreenberg/FaceSVG/blob/main/images/FaceSVG2.png)](https://www.youtube.com/watch?v=IQFW8jPruxM)
 
 The output SVG file should be compatible for use with the Shaper Origin handheld CNC router and with other applications requiring SVG output.
 In theory the pocket cut depth property is added, now supported by Shaper Origin Jenner
