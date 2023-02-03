@@ -33,7 +33,7 @@ module FaceSVG
 
       def write(file)
         file.write("\n<#{@name} ")
-        @attrs&.each { |k, v| file.write("#{k}='#{v}' ") }
+        @attrs.each { |k, v| file.write("#{k}='#{v}' ") } if @attrs
         if @children.length == 0 and not @text
           file.write('/>')
         else

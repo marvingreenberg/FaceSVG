@@ -14,17 +14,17 @@ module FaceSVG
         when PK_INTERIOR
           @attributes = {
             SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.3f', cut_depth),
-            FILL => white, STROKE => black, STROKE_WIDTH => '2',
+            FILL => white, STROKE => black, STROKE_WIDTH => '2px',
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         when PK_POCKET
           @attributes = {
             SHAPER_PATH_TYPE => kind,  SHAPER_CUT_DEPTH => format('%0.3f', cut_depth),
             FILL_RULE => EVENODD, FILL => gray(cut_depth),
-            STROKE_WIDTH => '2', STROKE =>  gray(cut_depth),
+            STROKE_WIDTH => '2px', STROKE =>  gray(cut_depth),
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         else # PK_GUIDE, let's not fill, could be problematic
           @attributes = { SHAPER_PATH_TYPE => kind,
-            STROKE_WIDTH => '2', STROKE => blue,
+            STROKE_WIDTH => '2px', STROKE => blue,
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         end
       end

@@ -91,7 +91,7 @@ module FaceSVG
       ################
       def su_profilegrp(create: true)
         # Find or create the group for the profile entities
-        unless @su_profilegrp&.valid?
+        unless @su_profilegrp && @su_profilegrp.valid?
           @su_profilegrp = Sketchup::active_model.entities.grep(Sketchup::Group)
                                    .find { |g| g.name==PROFILE_GROUP && g.valid? }
         end

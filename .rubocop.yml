@@ -1,9 +1,8 @@
 AllCops:
-  TargetRubyVersion: 2.7
+  TargetRubyVersion: 2.2 # 2.2 used in SU 2017
   Exclude:
     - stubs/Sketchup/*.rb
   NewCops: enable
-
 
 Layout/LineLength:
   Max: 120
@@ -52,6 +51,9 @@ Layout/SpaceAroundOperators:
   Enabled: false
 
 Layout/MultilineHashBraceLayout:
+  Enabled: false
+
+Style/SafeNavigation:
   Enabled: false
 
 Style/SelfAssignment:
