@@ -7,56 +7,10 @@ Sketchup.require('matrix')
 require('digest')
 require('json')
 
-module Sketchup
-  class ArcCurve
-    def to_h
-      {
-        radius: radius,
-        center: center.to_a,
-        first_edge: first_edge.to_h(include_curve: false),
-        last_edge: last_edge.to_h(include_curve: false),
-        start_angle: start_angle,
-        end_angle: end_angle,
-        xaxis: xaxis.to_a,
-        yaxis: yaxis.to_a,
-        edges: edges.map { |e| e.to_h(include_curve: false) }
-      }
-    end
-  end
-
-  class Edge
-    def to_h(include_curve: true)
-      {
-        entityID: entityID,
-       curve: include_curve && curve&.methods&.include?(:radius) ? curve.to_h : nil,
-       start: start.position.to_a,
-       end: self.end.position.to_a
-      }
-    end
-  end
-
-  class Loop
-    def to_h
-      {
-        edges: edges.map(&:to_h)
-      }
-    end
-  end
-end
-
 module FaceSVG
   extend self
 
-  def testdata(function:, inputs: [], result: nil)
-    FaceSVG.dbg("Write #{function} #{inputs}")
-    basedir = "/Users/mgreenberg/git/FaceSVG/testdata/#{Sketchup.active_model.title}"
-    Dir.new(basedir) unless Dir.exist?(basedir)
-    sfx = Digest::SHA2.new.update(inputs.to_s).to_s[1..8]
-    File.write("#{basedir}/#{function}-#{sfx}.json",
-               JSON.pretty_generate({ function: function, inputs: inputs, result: result }))
-  end
-
-  if true # ENV['FACESVG_DEBUG']
+  if ENV['FACESVG_DEBUG']
     def dbg(fmt, *args)
       puts format(fmt, *args)
     end

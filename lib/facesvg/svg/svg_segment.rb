@@ -18,13 +18,7 @@ module FaceSVG
         FaceSVG.dbg('Move to %s', @startxy) if is_first
         FaceSVG.dbg('Line to %s', @endxy)
 
-        result = (is_first ?
-          'M %0.3f %0.3f' % [@startxy.x, @startxy.y] :
-          '') + (
-          ' L %0.3f %0.3f' % [@endxy.x, @endxy.y])
-        FaceSVG.testdata(function: 'FaceSVG::SVG::SVGSegment.svgdata',
-                         inputs: [to_h, is_first], result: result)
-        result
+        (is_first ? 'M %0.3f %0.3f' % [@startxy.x, @startxy.y] : '') + (' L %0.3f %0.3f' % [@endxy.x, @endxy.y])
       end
     end
   end

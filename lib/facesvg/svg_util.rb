@@ -182,7 +182,6 @@ module FaceSVG
     # Return array of [ [SVGData, Bounds], [SVGData, Bounds] ,...]
     loops.map do |loop|
       su_part_ary = ordered_su_parts(loop).to_a
-      FaceSVG.testdata(function: 'FaceSVG.ordered_su_parts', inputs: [loop.to_h], result: su_part_ary.map(&:to_h))
       svg_parts = FaceSVG.svg_parts_for_su_parts(su_part_ary, transformation)
       # Return array of [SVGData strings, Bounds]
       svgdata = "#{svg_parts.map.with_index { |part, i| part.svgdata(is_first: i == 0) }.join(' ')} Z "

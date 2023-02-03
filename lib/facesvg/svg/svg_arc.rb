@@ -111,16 +111,12 @@ module FaceSVG
         FaceSVG.dbg('Arc to mid %s', @midxy) if @largearc
         FaceSVG.dbg('Arc to %s', @endxy)
 
-        # If first path (is_first) output "move",
-        # Then draw arc to end, with arc to midpoint if "largarc"
-        result = ((is_first ? format('M %0.3f %0.3f', @startxy.x, @startxy.y) : '') +
+        # If first path (is_first) output, "move". Then draw arc to end, with arc to midpoint if "largarc"
+        ((is_first ? format('M %0.3f %0.3f', @startxy.x, @startxy.y) : '') +
           (@largearc ?
             format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
             : '') +
           format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, @endxy.y))
-        FaceSVG.testdata(function: 'FaceSVG::SVG::SVGArc.svgdata',
-                         inputs: [to_h, is_first], result: result)
-        result
       end
     end
   end
