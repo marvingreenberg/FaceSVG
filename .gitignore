@@ -3,3 +3,7 @@ tasks.json
 launch.json
 .vscode
 **/*~
+.yardoc
+doc/
+coverage/
+facesvg*.rbz

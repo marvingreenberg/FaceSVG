@@ -1,5 +1,11 @@
 # SVG Face Export - Sketchup plugin compatible with Shaper Origin
 
+Supported Sketchup Versions: Probably any version since 2017.  This has been tested with Sketchup Pro 2022.  Since
+it is a plugin it requires a "Pro" desktop version.
+
+** Note: Release 3.0.0 has an important fix to how SVG is generated, where issues with Sketchup ordering of edges could
+result in invalid SVG paths to be generated.**
+
 **Note: Release 2.3.0 has an important fix to a problem where the viewBox could be generated incorrectly, which
 could cause problems with how the SVG was interpreted**
 
@@ -9,13 +15,12 @@ For a detailed description of how to use the plugin see the [Documentation](http
 
 Go to https://github.com/marvingreenberg/FaceSVG/releases for download links for the ruby '.rbz' plugin.
 
-~~If you find this useful, _especially for the Shaper Origin_, send me, say, $18 via &lt;deleted&gt;.  (You know, one roll of shaper tape)~~
-
-See the YouTube video to see its operation.
+See the YouTube video for some examples of its operation.
 
 [![FaceSVG Video](https://github.com/marvingreenberg/FaceSVG/blob/master/images/FaceSVG2.png)](https://www.youtube.com/watch?v=IQFW8jPruxM)
 
 The output SVG file should be compatible for use with the Shaper Origin handheld CNC router and with other applications requiring SVG output.
+In theory the pocket cut depth property is added, now supported by Shaper Origin Jenner
 
 ## Installation
 

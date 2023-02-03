@@ -1,0 +1,11 @@
+{
+  "function": "FaceSVG::SVG::SVGSegment.svgdata",
+  "inputs": [
+    {
+      "startxy": [2.469,3.267],
+      "endxy": [2.134,3.461]
+    },
+    true
+  ],
+  "result": "M 2.469 3.267 L 2.134 3.461"
+}
