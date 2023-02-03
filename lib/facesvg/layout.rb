@@ -22,7 +22,8 @@ module FaceSVG
       #   the z=0 plane
       def initialize(title)
         @title = title
-        reset()
+        @su_profilegrp = nil
+        @layoutx, @layouty, @rowheight = [CFG.layout_spacing, CFG.layout_spacing, 0.0]
       end
       ################
       # TODO: Use a map to hold the faces??,
