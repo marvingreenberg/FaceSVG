@@ -4,6 +4,7 @@ require('facesvg/svg/svg_arc')
 require('facesvg/svg/svg_segment')
 require('facesvg/svg/vector_n')
 require('facesvg/bounds')
+require('set')
 
 module FaceSVG
   extend self
