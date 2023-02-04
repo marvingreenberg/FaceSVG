@@ -3,7 +3,7 @@
 Supported Sketchup Versions: Probably any version since 2017.  This has been tested with Sketchup Pro 2022.  Since
 it is a plugin it requires a "Pro" desktop version.
 
-** Note: Release 3.0.0 has an important fix to how SVG is generated, where issues with Sketchup ordering of edges could
+** Note: Release 3.0.1 has an important fix to how SVG is generated, where issues with Sketchup ordering of edges could
 result in invalid SVG paths to be generated.**
 
 **Note: Release 2.3.0 has an important fix to a problem where the viewBox could be generated incorrectly, which
