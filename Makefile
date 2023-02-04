@@ -1,4 +1,4 @@
-VERSION=3.0.1
+VERSION=3.0.2
 plugin: check
 	rm -f facesvg*.rbz;
 	cd lib; zip -r ../facesvg-$(VERSION).rbz $$(find . -name '*rb' -o -name '*png')

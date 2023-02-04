@@ -3,11 +3,10 @@
 Supported Sketchup Versions: Probably any version since 2017.  This has been tested with Sketchup Pro 2022.  Since
 it is a plugin it requires a "Pro" desktop version.
 
-** Note: Release 3.0.1 has an important fix to how SVG is generated, where issues with Sketchup ordering of edges could
-result in invalid SVG paths to be generated.**
-
-**Note: Release 2.3.0 has an important fix to a problem where the viewBox could be generated incorrectly, which
-could cause problems with how the SVG was interpreted**
+Notes:
+  * Release 3.0.2 fixes an issue for very small circular arcs and some other issues with arcs.
+  * Release 3.0.1 has a fix to how SVG is generated, caused by unexpected issues with Sketchup edge ordering
+  * Release 2.3.0 has a fix for an incorrectly generated viewBox which would scale the SVG incorrectly
 
 This is a plugin for Sketchup to generate an SVG outline from selected faces.  The plugin adds a couple operations to the "context menu" (right click) when a face is selected or to select the current face. "Layout SVG profile" copies the selected (and related) faces in to a special "SVG Profile" group.  "Write SVG profile" converts the edges of these faces into SVG paths, with the fill set according the the guidelines outlined by *Shaper Origin* for exterior and interior cuts profiles, and for "pocket" cuts.  New to this release, added support for pocket cuts, and the ability to manually edit and change the layout from within Sketchup.
 

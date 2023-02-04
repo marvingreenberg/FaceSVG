@@ -80,6 +80,8 @@ module FaceSVG
     interior_edges = part.edges - [first_edge, last_edge]
     interior_vertices = Set.new(interior_edges.map { |e| [e.start, e.end] }.flatten)
 
+    return [first_edge.start, last_edge.end] if interior_vertices.size == 0
+
     raise 'Missing start vertex' unless [first_edge.start, first_edge.end].any? { |v| interior_vertices.include?(v) }
     raise 'Missing end vertex' unless [last_edge.start, last_edge.end].any? { |v| interior_vertices.include?(v) }
 

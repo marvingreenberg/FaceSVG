@@ -89,7 +89,8 @@ module FaceSVG
         @midxy = ellipseXY_at_angle(midangle, absolute: true)
 
         # Draw large arcs as two arcs, instead of using flag, to handle closed path case
-        @largearc = (@end_angle - @start_angle) > Math::PI
+        # Originally this was for arcs large than PI, but try for larger that PI/2 for some case I don't understand
+        @largearc = (@end_angle - @start_angle) > (Math::PI/2.0)
       end
 
       def ellipseXY_at_angle(ang, absolute: false)
@@ -113,9 +114,7 @@ module FaceSVG
 
         # If first path (is_first) output, "move". Then draw arc to end, with arc to midpoint if "largarc"
         ((is_first ? format('M %0.3f %0.3f', @startxy.x, @startxy.y) : '') +
-          (@largearc ?
-            format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y)
-            : '') +
+          (@largearc ? format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @midxy.x, @midxy.y) : '') +
           format(SVG_ARC_FORMAT, @rx, @ry, @xrotdeg, sweep_fl, @endxy.x, @endxy.y))
       end
     end

@@ -8,7 +8,7 @@ require 'langhandler'
 # TODO: support metric output mm,cm
 
 module FaceSVG
-  VERSION = '3.0.1'
+  VERSION = '3.0.2'
 
   lang = LanguageHandler.new('facesvg')
 
