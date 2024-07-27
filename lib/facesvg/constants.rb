@@ -18,7 +18,8 @@ module FaceSVG
   PK_POCKET = 'hogging'
   PK_GUIDE = 'guide' # TODO
 
-  # SVG XML CONSTANTS
+  # SVG XML CONSTANTS. SVG are always output in inches now
+  SHAPER_UNITS = INCHES
   SHAPER_CUT_DEPTH = 'shaper:cutDepth'
   SHAPER_PATH_TYPE = 'shaper:pathType'
   FILL = 'fill'

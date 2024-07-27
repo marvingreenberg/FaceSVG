@@ -1,9 +1,11 @@
 # SVG Face Export - Sketchup plugin compatible with Shaper Origin
 
-Supported Sketchup Versions: Probably any version since 2017.  This has been tested with Sketchup Pro 2022.  Since
+Supported Sketchup Versions: Probably any version since 2017.  This has been tested with Sketchup Pro 2024.  Since
 it is a plugin it requires a "Pro" desktop version.
 
 Notes:
+  * Release 3.1.0 fixes an with imports that prevented use with Sketchup 2024 (Ruby 3.2)
+  * Release 3.0.3 fixes an issue where the depth encoding for shaper origin was missing required units (inches)
   * Release 3.0.2 fixes an issue for very small circular arcs and some other issues with arcs.
   * Release 3.0.1 has a fix to how SVG is generated, caused by unexpected issues with Sketchup edge ordering
   * Release 2.3.0 has a fix for an incorrectly generated viewBox which would scale the SVG incorrectly

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-Sketchup.require('matrix')
+require('matrix') unless defined?(Matrix)
 
 module FaceSVG
   extend self

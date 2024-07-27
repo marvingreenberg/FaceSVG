@@ -9,16 +9,16 @@ module FaceSVG
         case kind
         when PK_EXTERIOR
           @attributes = {
-            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.3f', cut_depth),
+            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.3f%s', cut_depth, SHAPER_UNITS),
             FILL => black }
         when PK_INTERIOR
           @attributes = {
-            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.3f', cut_depth),
+            SHAPER_PATH_TYPE => kind, SHAPER_CUT_DEPTH => format('%0.3f%s', cut_depth, SHAPER_UNITS),
             FILL => white, STROKE => black, STROKE_WIDTH => '2px',
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }
         when PK_POCKET
           @attributes = {
-            SHAPER_PATH_TYPE => kind,  SHAPER_CUT_DEPTH => format('%0.3f', cut_depth),
+            SHAPER_PATH_TYPE => kind,  SHAPER_CUT_DEPTH => format('%0.3f%s', cut_depth, SHAPER_UNITS),
             FILL_RULE => EVENODD, FILL => gray(cut_depth),
             STROKE_WIDTH => '2px', STROKE =>  gray(cut_depth),
             VECTOR_EFFECT => VE_NON_SCALING_STROKE }

@@ -3,9 +3,9 @@
 require('facesvg/constants')
 require('facesvg/bounds')
 require('facesvg/svg/util')
-Sketchup.require('matrix')
 require('digest')
 require('json')
+require('matrix') unless defined?(Matrix)
 
 module FaceSVG
   extend self
