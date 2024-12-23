@@ -1,4 +1,4 @@
-# Copyright 2013, Trimble Navigation Limited
+# Copyright 2013-2023 Trimble Inc
 
 # This software is provided as an example of using the Ruby interface
 # to SketchUp.
@@ -64,7 +64,7 @@ class LanguageHandler
     end
     if @language_folder
       file_path = File.join(@language_folder, file_name)
-      if File.exists?(file_path)
+      if File.exist?(file_path)
         return file_path
       end
     end
@@ -110,18 +110,18 @@ class LanguageHandler
       strings_file_path = File.join(resource_folder_path, Sketchup.get_locale,
         strings_file_name)
       # If the file is not there, then try the local default language folder.
-      if File.exists?(strings_file_path) == false
+      if File.exist?(strings_file_path) == false
         strings_file_path = File.join(resource_folder_path, 'en-US',
           strings_file_name)
       end
     end
     
     # If that doesn't exist, then try the SketchUp resources folder.
-    if File.exists?(strings_file_path) == false
+    if File.exist?(strings_file_path) == false
       strings_file_path = Sketchup.get_resource_path(strings_file_name)      
     end
 
-    if strings_file_path && File.exists?(strings_file_path)
+    if strings_file_path && File.exist?(strings_file_path)
       return strings_file_path
     else
       return nil

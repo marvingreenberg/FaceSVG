@@ -1,4 +1,4 @@
-# Copyright 2013, Trimble Navigation Limited
+# Copyright 2013-2023 Trimble Inc.
 
 # This software is provided as an example of using the Ruby interface
 # to SketchUp.
@@ -65,7 +65,7 @@ class SketchupExtension
         "extension_info.txt")
       # If the file does not exist, this is not an extension store
       # extension.  That's ok.  Just return.
-      if File.exists?(extension_info_file_name) == false
+      if File.exist?(extension_info_file_name) == false
         return
       end
       

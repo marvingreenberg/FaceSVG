@@ -14,7 +14,7 @@
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 
 require 'langhandler.rb'
-$suStrings = LanguageHandler.new('gettingstarted.strings')
+$suStrings = LanguageHandler.new("gettingstarted.strings")
 
 # This file defines a number of useful utilities that are used by other
 # Ruby scripts.
@@ -29,7 +29,7 @@ $suStrings = LanguageHandler.new('gettingstarted.strings')
 # This array keeps track of loaded files.  It is like the Ruby variable $"
 # that is set by require, but it is not set automatically.  You have
 # to call file_loaded to add a filename to the array
-$loaded_files ||= []
+$loaded_files = [] unless $loaded_files
 
 # Use in combination with {#file_loaded} to create load guards for code you
 # don't want to reload. Especially useful to protect your UI setup from creating
@@ -81,9 +81,9 @@ end
 #
 # @version SketchUp 6.0
 def file_loaded(filename)
-  return if $loaded_files.include?(filename.downcase)
-
-  $loaded_files << filename.downcase
+  unless $loaded_files.include?(filename.downcase)
+    $loaded_files << filename.downcase
+  end
 end
 
 $menu_separator_list = []
@@ -98,10 +98,10 @@ $menu_separator_list = []
 #
 # @version SketchUp 6.0
 def add_separator_to_menu(menu_name)
-  return if $menu_separator_list.include?(menu_name)
-
-  UI.menu(menu_name).add_separator
-  $menu_separator_list << menu_name
+  unless $menu_separator_list.include?(menu_name)
+    UI.menu(menu_name).add_separator
+    $menu_separator_list << menu_name
+  end
 end
 
 # This is a wrapper for {UI.inputbox}.  You call it exactly the same
@@ -119,8 +119,8 @@ def inputbox(*args)
   begin
     results = nil
     results = UI.inputbox(*args)
-  rescue ArgumentError => e
-    UI.messagebox(e.message)
+  rescue ArgumentError => error
+    UI.messagebox(error.message)
     retry if args.length > 0
   end
   results
@@ -139,13 +139,15 @@ end
 #
 # @version SketchUp 6.0
 def require_all(dirname)
-  rbfiles = Dir[File.join(dirname, '*.{rbe,rbs,rb}')]
-  # This isn't ideal, adding to the load path. This could interfere with
-  # how extension's load files using `require`.
-  $:.push dirname
-  rbfiles.each { |f| Sketchup::require f }
-rescue
-  puts "could not load files from #{dirname}"
+  begin
+    rbfiles = Dir[File.join(dirname, "*.{rbe,rbs,rb}")]
+    # This isn't ideal, adding to the load path. This could interfere with
+    # how extension's load files using `require`.
+    $:.push dirname
+    rbfiles.each {|f| Sketchup::require f}
+  rescue
+    puts "could not load files from #{dirname}"
+  end
 end
 
 # @deprecated Use +SKETCHUP_CONSOLE.show+ instead.
@@ -156,5 +158,5 @@ end
 #
 # @version SketchUp 6.0
 def show_ruby_panel
-  Sketchup.send_action('showRubyPanel:')
+  Sketchup.send_action("showRubyPanel:")
 end
