@@ -67,7 +67,7 @@ module FaceSVG
       # cot is just 1/tan, so...
       def ellipse_parameters
         # circle, axes are orthogonal, same length
-        if ((@xaxis2d.dot @yaxis2d) == 0 && SVG.same(@xaxis2d.abs, @yaxis2d.abs))
+        if (@xaxis2d.dot @yaxis2d) == 0 && SVG.same(@xaxis2d.abs, @yaxis2d.abs)
           @vx = @xaxis2d
           @vy = @yaxis2d
           @rx = @ry = @radius

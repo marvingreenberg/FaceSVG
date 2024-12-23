@@ -24,7 +24,7 @@ module FaceSVG
 
   def mk_material(name, color)
     m = Sketchup::active_model.materials[name]
-    m = Sketchup::active_model.materials.add(name) if (m.nil? || !m.valid?)
+    m = Sketchup::active_model.materials.add(name) if m.nil? || !m.valid?
     m.color = color
     m
   end

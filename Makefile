@@ -10,7 +10,7 @@ plugin: check
 	   ~/'Library/Application Support/SketchUp 2024/SketchUp/Plugins/facesvg'
 
 check:
-	bundle exec rubocop --fail-level error lib test
+	rubocop --fail-level error lib test
 
 test:
 	ruby run_test.rb

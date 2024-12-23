@@ -30,18 +30,18 @@ module FaceSVG
     end
 
     def relieve_face_corners(*faces, radius, auto: false)
-      raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, 'face') if CR_ASYMMETRIC == CFG.corner_relief
+      raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, 'face') if CFG.corner_relief == CR_ASYMMETRIC
 
       # Not asymmetric, must be symmetric
       # TODO: If only outer loop, relieve outside corners.
       failures = faces.map { |face|
         face.loops.reject(&:outer?).map { |l| symmetric_relief(l, radius, auto: auto) }
       }.count(false)
-      raise format(NN_WARNING_LOOPS_IGNORED, failures) if (failures !=0 && !auto)
+      raise format(NN_WARNING_LOOPS_IGNORED, failures) if failures !=0 && !auto
     end
 
     def relieve_edge_corners(*edges, radius)
-      if CR_ASYMMETRIC == CFG.corner_relief
+      if CFG.corner_relief == CR_ASYMMETRIC
         raise format(ERROR_ASYMMETRIC_SINGLE_EDGE_SS, edges.size) if edges.size != 1
 
         asymmetric_relief(edges[0], inner_loop_with(edges[0]), radius)
@@ -192,8 +192,8 @@ module FaceSVG
       waste = rectangle(loop).map { |common, end0, end1|
         vertex0 = (end0 - common)
         vertex1 = (end1 - common)
-        break [] unless (check_edge_bigenough(vertex0, vertex1, min_edge, radius, auto) &&
-                         check_auto_size(vertex0, vertex1, auto))
+        break [] unless check_edge_bigenough(vertex0, vertex1, min_edge, radius, auto) &&
+                        check_auto_size(vertex0, vertex1, auto)
 
         # Two vectors pointing away from common corner, scaled to r * sqrt(1/2)
         # p1
